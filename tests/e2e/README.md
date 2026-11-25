@@ -28,3 +28,13 @@ Com o mockup do Lyon em `/tmp/e2e/lyon.jpg` (ou `ARTE=...`):
 Fluxo: frente marcada → contorno da peça (descarta estádio) → tipo Uniforme → PDF.
 Esperado: pág. 2 = fundo retangular na cor base (vetor, aplicável a qualquer molde); pág. 3 = faixa,
 gola, listras, escudo e logo em vetor; nenhum bitmap.
+
+## Redesenho de texto (OCR + identificação de fonte)
+
+Com o mockup do Lyon em `/tmp/e2e/lyon.jpg`:
+
+    python3 texto_lyon.py
+
+Costas como uniforme → ferramenta Texto em "LYON", "FUTEBOL CLUBE" e "10" → OCR lê o texto →
+fonte mais parecida da biblioteca → texto vivo no lugar, substituindo o contorno vetorizado.
+Último resultado: OCR 3/3 correto; Bungee 72%, Barlow Condensed Bold 72%, Anton 79%.

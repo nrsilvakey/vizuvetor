@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { assetUrl, useApp } from "../ctx";
 import { canvas, decode, toBlob } from "../lib/image";
 import { cutObject, illustrationBackground, separatePiece } from "../lib/separate";
-import { ART_LABEL, ArtType, EngineSettings, Obj, ROLE_LABEL } from "../model";
+import { ART_LABEL, ArtType, EngineSettings, Obj, ROLE_LABEL, T0, TextObject, uid, VectorObject } from "../model";
+import { ensureLibraryFont, fontLibrary, inkMask, matchFonts, ocr, textPlacement } from "../lib/fontmatch";
 import { PieceObjects } from "../render";
 
-type Tool = "laco" | "caixa" | "pincel";
+type Tool = "laco" | "caixa" | "pincel" | "texto";
 const BRUSH = [[1, "Vetor", "#e4003a"], [2, "Imagem", "#1f9d55"], [3, "Fundo", "#2f7df6"], [0, "Apagar correção", "#888"]] as const;
 const COLORS = ["", "rgba(228,0,58,.45)", "rgba(31,157,85,.45)", "rgba(47,125,246,.45)"];
 const maps = new Map<string, Uint8Array>(); // correções de pincel em memória por peça
@@ -25,6 +26,8 @@ export default function Separar({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState("");
   const [stats, setStats] = useState<Record<string, any>>({});
   const [ras, setRas] = useState<ImageBitmap | null>(null);
+  const [tj, setTj] = useState<any>(null); // trabalho de texto: caixa, tinta, OCR, ranking
+  const myFont = useRef<HTMLInputElement>(null);
   const ov = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<{ pts: number[][] } | null>(null);
   const painting = useRef(false);
@@ -80,7 +83,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
     if (tool === "pincel") return paint(e);
     if (!drawing.current) return;
     const q = toPx(e), pts = drawing.current.pts;
-    if (tool === "caixa") { pts[1] = q; drawOverlay(pts, true); return; }
+    if (tool === "caixa" || tool === "texto") { pts[1] = q; drawOverlay(pts, true); return; }
     const last = pts[pts.length - 1];
     if (Math.hypot(q[0] - last[0], q[1] - last[1]) > 3) { pts.push(q); drawOverlay(pts); }
   }
@@ -89,6 +92,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
     const g = drawing.current; drawing.current = null;
     if (!g || !ras) return;
     let poly = g.pts;
+    if (tool === "texto") { if (poly.length < 2) return drawOverlay(); return startText(poly[0], poly[1]); }
     if (tool === "caixa") { if (poly.length < 2) return drawOverlay(); const [a, b] = [poly[0], poly[1]]; poly = [[a[0], a[1]], [b[0], a[1]], [b[0], b[1]], [a[0], b[1]]]; }
     if (poly.length < 3) return drawOverlay();
     await doCut(poly, tool === "laco");
@@ -148,6 +152,64 @@ export default function Separar({ onDone }: { onDone: () => void }) {
     update((d) => ({ ...d, project: { ...d.project!, pieces: d.project!.pieces.map((x) => (x.id === pid ? { ...x, objects: [r.bg, ...x.objects.filter((o) => o.type !== "background")] } : x)) } }));
     setBusy(""); bump();
     if (r.method === "blocos" || r.method === "copia") toast("Fundo refeito por textura — confira antes de aprovar");
+  }
+
+  // ---------- texto: ler, identificar a fonte e recriar ----------
+  async function startText(a: number[], b: number[]) {
+    if (!ras) return;
+    const box = { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(a[0] - b[0]), h: Math.abs(a[1] - b[1]) };
+    if (box.w < 8 || box.h < 8) return drawOverlay();
+    const [c, x] = canvas(ras.width, ras.height); x.drawImage(ras, 0, 0);
+    const ink = inkMask(x.getImageData(0, 0, c.width, c.height), box);
+    setTj({ box, ink, text: "", busy: "Lendo o texto…", ranked: null });
+    // imagem binarizada (tinta preta sobre branco) para o OCR
+    const [oc, ox] = canvas(ink.w + 40, ink.h + 40), od = ox.createImageData(oc.width, oc.height);
+    od.data.fill(255);
+    for (let y = 0; y < ink.h; y++) for (let xx = 0; xx < ink.w; xx++) if (ink.mask[y * ink.w + xx]) { const i = ((y + 20) * oc.width + xx + 20) * 4; od.data[i] = od.data[i + 1] = od.data[i + 2] = 0; }
+    ox.putImageData(od, 0, 0);
+    const r = await ocr(oc);
+    setTj((t: any) => t && ({ ...t, text: r?.text || "", conf: r?.conf, busy: "" }));
+    if (!r) toast("Não consegui ler automaticamente — digite o texto");
+  }
+  async function identify(extraFont?: string) {
+    if (!tj?.text?.trim()) return toast("Digite o texto que está na caixa");
+    setTj({ ...tj, busy: "Comparando fontes…" });
+    const libf = await fontLibrary();
+    const cands: { path: string; nome: string }[] = [];
+    for (const f of libf) cands.push({ path: await ensureLibraryFont(assets, f.arquivo), nome: f.nome });
+    for (const k of assets.keys()) if (k.startsWith("fonts/") && !k.startsWith("fonts/biblioteca/") && /\.(ttf|otf)$/i.test(k)) cands.push({ path: k, nome: k.replace("fonts/", "") + " (sua)" });
+    if (extraFont && !cands.some((c) => c.path === extraFont)) cands.push({ path: extraFont, nome: extraFont.replace("fonts/", "") + " (sua)" });
+    try {
+      const { ranked, tightBox } = await matchFonts(assets, tj.ink, tj.text.trim(), cands);
+      setTj((t: any) => ({ ...t, ranked: ranked.slice(0, 6), tightBox, busy: "" }));
+    } catch (e: any) { toast(e.message); setTj((t: any) => ({ ...t, busy: "" })); }
+  }
+  async function useFont(m: any) {
+    if (!ras) return;
+    const pxToMm = pc.width_mm / ras.width;
+    const pl = await textPlacement(assets, m, tj.ink, tj.tightBox, tj.text.trim(), pxToMm);
+    const t: TextObject = { id: uid("txt"), name: `Texto “${tj.text.trim()}”`, type: "text", content: tj.text.trim(), font_path: m.path, size_pt: Math.round(pl.size_pt * 10) / 10,
+      fill: tj.ink.color, align: "left", letter_spacing_pt: Math.round(pl.letter_spacing_pt * 100) / 100, ocr_text: tj.text.trim(), reviewed: false,
+      z: 900, transform: { ...T0(), x_mm: pl.x_mm, y_mm: pl.y_mm }, visible: true, approved: false, origin: "manual", confidence: Math.round(m.iou * 100) / 100 };
+    // remove o contorno vetorizado da mesma tinta dentro da caixa (o texto vivo substitui)
+    const bx = { x0: tj.box.x * pxToMm, y0: tj.box.y * pxToMm, x1: (tj.box.x + tj.box.w) * pxToMm, y1: (tj.box.y + tj.box.h) * pxToMm };
+    let removed = 0;
+    update((d) => ({ ...d, project: { ...d.project!, pieces: d.project!.pieces.map((x) => {
+      if (x.id !== pid) return x;
+      const objs = x.objects.map((o) => {
+        if (o.type !== "vector" || o.transform.rotation_deg || o.transform.scale !== 1) return o;
+        const keep = o.paths.filter((p) => { const b = pathBox(p.d, o.transform.x_mm, o.transform.y_mm); const inside = b.x0 >= bx.x0 - 1 && b.y0 >= bx.y0 - 1 && b.x1 <= bx.x1 + 1 && b.y1 <= bx.y1 + 1; if (inside && near(p.fill, tj.ink.color)) { removed++; return false; } return true; });
+        return { ...o, paths: keep } as VectorObject;
+      }).filter((o) => o.type !== "vector" || (o as VectorObject).paths.length);
+      return { ...x, objects: [...objs, t] };
+    }) } }));
+    toast(`Texto recriado em ${m.nome}${removed ? ` (substituiu ${removed} forma(s) vetorizada(s))` : ""} — revise os acentos`);
+    setTj(null); drawOverlay(); bump();
+  }
+  async function loadMyFont(f: File) {
+    const name = "fonts/" + f.name.replace(/[^\w.-]+/g, "_");
+    assets.set(name, new Blob([await f.arrayBuffer()], { type: "font/ttf" }));
+    await identify(name);
   }
 
   // ---------- separação automática ----------
@@ -223,9 +285,23 @@ export default function Separar({ onDone }: { onDone: () => void }) {
         <div className="brushes">
           <button className={tool === "laco" ? "on" : ""} onClick={() => setTool("laco")}>Laço (rente)</button>
           <button className={tool === "caixa" ? "on" : ""} onClick={() => setTool("caixa")}>Caixa</button>
+          <button className={tool === "texto" ? "on" : ""} onClick={() => setTool("texto")}>Texto (redesenhar)</button>
           {art !== "ilustracao" && <button className={tool === "pincel" ? "on" : ""} onClick={() => setTool("pincel")}>Pincel de correção</button>}
         </div>
-        {tool !== "pincel" && (<>
+        {tool === "texto" && (<>
+          <p className="hint small">Marque uma caixa em volta de UMA linha de texto (ex.: “LYON”, “FUTEBOL CLUBE”, “10”). O app lê o texto, descobre a fonte mais parecida e recria como texto editável no mesmo lugar.</p>
+          {tj && (<div className="card on">
+            <label className="fld">Texto lido {tj.conf != null ? `(confiança ${Math.round(tj.conf * 100)}%)` : ""}<input value={tj.text} onChange={(e) => setTj({ ...tj, text: e.target.value, ranked: null })} placeholder="Digite o texto da caixa" /></label>
+            <p className="hint small">Cor detectada: <i style={{ display: "inline-block", width: 14, height: 14, background: tj.ink.color, verticalAlign: -2, border: "1px solid #999" }} /> {tj.ink.color.toUpperCase()} · confira acentos e maiúsculas</p>
+            <div className="row"><button className="on" disabled={!!tj.busy} onClick={() => identify()}>{tj.busy || "Identificar a fonte"}</button>
+              <button onClick={() => myFont.current?.click()}>Comparar com minha fonte</button>
+              <button onClick={() => { setTj(null); drawOverlay(); }}>Cancelar</button></div>
+            <input ref={myFont} type="file" accept=".ttf,.otf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) loadMyFont(f); e.target.value = ""; }} />
+            {tj.ranked && (<ul className="fontrank">{tj.ranked.map((m: any, i: number) => (
+              <li key={m.path}><img src={m.preview} alt="" /><span><b>{m.nome}</b>{Math.round(m.iou * 100)}% de sobreposição{i === 0 ? " · mais parecida" : ""}</span><button onClick={() => useFont(m)}>Usar</button></li>))}</ul>)}
+          </div>)}
+        </>)}
+        {tool !== "pincel" && tool !== "texto" && (<>
           <label className="fld">Nome do próximo recorte<input value={cutName} onChange={(e) => setCutName(e.target.value)} /></label>
           <p className="hint small">Laço: contorne rente — o miolo é mantido e só a borda é ajustada pela cor. Caixa: o app tenta separar o objeto do fundo pela cor (funciona quando as cores são bem diferentes).</p>
           {cutsHere.length > 0 && <p className="hint small">Recortes nesta peça: {cutsHere.map((o) => o.name).join(", ")}</p>}
@@ -262,4 +338,16 @@ export default function Separar({ onDone }: { onDone: () => void }) {
       </aside>
     </section>
   );
+}
+
+function pathBox(d: string, ox: number, oy: number) {
+  const n = (d.match(/-?\d*\.?\d+(?:e-?\d+)?/g) || []).map(Number);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i + 1 < n.length; i += 2) { const x = n[i] + ox, y = n[i + 1] + oy; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return { x0, y0, x1, y1 };
+}
+function near(a: string, b: string) {
+  const p = (h: string) => [1, 3, 5].map((k) => parseInt(h.substr(k, 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 90;
 }

@@ -1,0 +1,152 @@
+[
+ {
+  "arquivo": "AlfaSlabOne-Regular.ttf",
+  "nome": "Alfa Slab One",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Anton-Regular.ttf",
+  "nome": "Anton",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "ArchivoBlack-Regular.ttf",
+  "nome": "Archivo Black",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Arvo-Bold.ttf",
+  "nome": "Arvo Bold",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "BarlowCondensed-Black.ttf",
+  "nome": "Barlow Condensed Black",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "BarlowCondensed-Bold.ttf",
+  "nome": "Barlow Condensed Bold",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "BebasNeue-Regular.ttf",
+  "nome": "Bebas Neue",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Bevan-Regular.ttf",
+  "nome": "Bevan",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "BlackOpsOne-Regular.ttf",
+  "nome": "Black Ops One",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Bungee-Regular.ttf",
+  "nome": "Bungee",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "FjallaOne-Regular.ttf",
+  "nome": "Fjalla One",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Graduate-Regular.ttf",
+  "nome": "Graduate",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "KaushanScript-Regular.ttf",
+  "nome": "Kaushan Script",
+  "estilo": "cursiva",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Lobster-Regular.ttf",
+  "nome": "Lobster",
+  "estilo": "cursiva",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Pacifico-Regular.ttf",
+  "nome": "Pacifico",
+  "estilo": "cursiva",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "PassionOne-Bold.ttf",
+  "nome": "Passion One Bold",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "PatuaOne-Regular.ttf",
+  "nome": "Patua One",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "RussoOne-Regular.ttf",
+  "nome": "Russo One",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Rye-Regular.ttf",
+  "nome": "Rye",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "SairaCondensed-Bold.ttf",
+  "nome": "Saira Condensed Bold",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "SairaCondensed-ExtraBold.ttf",
+  "nome": "Saira Condensed ExtraBold",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Sancreek-Regular.ttf",
+  "nome": "Sancreek",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Staatliches-Regular.ttf",
+  "nome": "Staatliches",
+  "estilo": "sem serifa",
+  "licenca": "SIL OFL 1.1"
+ },
+ {
+  "arquivo": "Ultra-Regular.ttf",
+  "nome": "Ultra",
+  "estilo": "serifa",
+  "licenca": "Apache 2.0"
+ },
+ {
+  "arquivo": "ZillaSlab-Bold.ttf",
+  "nome": "Zilla Slab Bold",
+  "estilo": "serifa",
+  "licenca": "SIL OFL 1.1"
+ }
+]

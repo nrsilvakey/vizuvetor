@@ -98,3 +98,4 @@ details{margin-top:12px;font-size:14px}summary{cursor:pointer;font-weight:600}
 .toast.on{opacity:1}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 .outline{fill:none;stroke:#00c8ff;stroke-width:2;vector-effect:non-scaling-stroke;stroke-dasharray:6 4}
+.fontrank{list-style:none;padding:0;margin:6px 0}.fontrank li{display:grid;grid-template-columns:110px 1fr auto;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:4px 0;font-size:12px}.fontrank img{width:110px;background:#fff;border-radius:4px}.fontrank span{display:flex;flex-direction:column}
