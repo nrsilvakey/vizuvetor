@@ -95,3 +95,10 @@ TrimBox/BleedBox com sangria; sem fontes fantasmas. Detalhes em `docs/contrato-p
 - **GitHub conectado ao Claude**: repositório e CI.
 - **VPS** (Hostinger ou outro): API, PostgreSQL, fila e worker de IA.
 - **Certificados**: assinatura Windows e conta Apple Developer para notarizar o DMG.
+
+## Identificação de elementos por IA (Claude)
+
+- O navegador envia a peça (reduzida a 1568 px, JPEG) para `app/api/analisar.php`; o PHP chama a API da Anthropic com a chave guardada **só no servidor** em `public_html/vizuvetor/app/api/config.php` (bloqueado por `.htaccess`, fora do git; modelo em `docs/vizuvetor-config.exemplo.php`).
+- O deploy (`scripts/deploy_tus.sh`) não envia `config.php`, então a chave não é sobrescrita.
+- `config.php` também aceita `senha_equipe` (o app pede a senha) e `limite_por_hora` por IP.
+- Teste sem gastar API: `tests/e2e/ia_lyon.py` simula a resposta.
