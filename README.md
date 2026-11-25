@@ -4,7 +4,7 @@ Transforma artes geradas por IA em projetos editáveis e exporta um **PDF de exa
 3 páginas** para o CorelDRAW (1 arte completa · 2 só fundo · 3 todos os vetores), com
 SVG em camadas para o VectorCraft. Interface em português do Brasil.
 
-## Estado atual (etapa 1 de 5)
+## Estado atual (etapa 2 de 5)
 
 | Parte | Pasta | Estado |
 |---|---|---|
@@ -13,8 +13,8 @@ SVG em camadas para o VectorCraft. Interface em português do Brasil.
 | Fixture sintética (camiseta frente/costas) | `tests/fixtures/make_fixture.py` | ✅ feita |
 | Importação no CorelDRAW | `docs/checklist-coreldraw.md` | 🟡 abriu corretamente no Corel (Mac); itens do checklist a detalhar |
 | Protótipo VizuVetor (separação no navegador) | `apps/vizuvetor` | ✅ no ar em https://opencriativa.com.br/vizuvetor/ |
-| Web (React/Vite) + editor | `apps/web`, `packages/editor` | ⬜ não iniciado (etapa 2) |
-| API + fila + PostgreSQL | `services/api` | ⬜ não iniciado (etapa 2/3), precisa de VPS |
+| App web (React/Vite) ponta a ponta | `apps/web` | ✅ importar · peças (retângulo e 4 cantos com perspectiva) · separar com pincel · editor · salvar/reabrir `.vizuvetor` · PDF no navegador (Pyodide) |
+| API + fila + PostgreSQL | `services/api` | ⬜ não iniciado — o app funciona sem servidor; a API entra com o VPS |
 | OCR, segmentação, vetorização no worker | `services/worker` | ⬜ não iniciado (etapa 3), precisa de VPS |
 | Desktop (Tauri, Windows/macOS) | `apps/desktop` | ⬜ não iniciado (etapa 4), precisa de GitHub + certificados |
 
@@ -31,6 +31,19 @@ python3 ../../tests/fixtures/make_fixture.py
 python3 -m vizuvetor_worker exportar ../../tests/fixtures/camiseta_sintetica/projeto.json saida.pdf --manifesto saida.json
 python3 -m pytest -q                # 20 testes
 ```
+
+App web:
+
+```bash
+cd apps/web
+npm install
+npm run dev        # desenvolvimento
+npm run build      # gera dist/ (copia o worker Python para public/py)
+```
+
+O PDF do app web é gerado no navegador pelo **mesmo código Python** do worker,
+rodando no Pyodide (carregado de cdn.jsdelivr.net na primeira exportação).
+PDF do navegador e do Python nativo: idênticos pixel a pixel (testado).
 
 Gerar o JSON Schema depois de mudar o modelo:
 
@@ -55,9 +68,24 @@ TrimBox/BleedBox com sangria; sem fontes fantasmas. Detalhes em `docs/contrato-p
 - A fixture é sintética: a arte real de camiseta ("Família de Légua") ainda precisa de validação manual.
 - Fonte de teste: DejaVu Sans (licença em `tests/fixtures/fonts/LICENSE-DejaVu.txt`).
 
+## Etapa 2 — o que foi verificado (teste ponta a ponta no Chrome)
+
+- Mockup de camiseta: 4 peças marcadas (frente, costas, 2 mangas), separação: moldura, estrela e letras em vetor; esfera sombreada como imagem recortada; céu interno como fundo reconstruído.
+- Pincel "Imagem" sobre parte da estrela: na nova separação aquela faixa virou bitmap.
+- Texto com acento adicionado, revisado e aprovado; arrastar no canvas e desfazer/refazer.
+- Salvar `.vizuvetor`, descartar, reabrir: mesmos 14 objetos e nome com acento.
+- PDF gerado no navegador: 3 páginas, página 3 sem imagens, texto "Família de Légua" extraível, estado "Aprovado".
+- Placa fotografada em perspectiva: 4 cantos clicados fora de ordem, retificação 1000 × 500 mm (proporção medida 1,998).
+
+## Limitações atuais da etapa 2
+
+- Sem OCR e sem detecção automática de peças/painéis (etapa 3): peças e textos são marcados à mão.
+- Ajuste de nós de curvas ainda não está no editor (mover, escalar, girar, cores, dividir/mesclar já estão).
+- Moldes reais de camiseta e variantes de tamanho: etapa 4.
+- Projeto é salvo como arquivo `.vizuvetor` e rascunho automático no navegador; sem servidor ainda.
+
 ## Próximas etapas
 
-2. Fatia web ponta a ponta: upload, peças manuais, máscaras com pincel, editor, salvar/reabrir projeto, PDF; modo placa com perspectiva.
 3. OCR (PaddleOCR), segmentação assistida, vetorização no worker (portando o motor do VizuVetor), reconstrução de fundo com aprovação.
 4. Desktop Tauri (Windows x64, macOS Apple Silicon/Intel), moldes reais e variantes de tamanho.
 5. README final com matriz de compatibilidade testada.

@@ -209,7 +209,7 @@ class _Exporter:
             t.setTextOrigin(ax, base_y)
             t.setFont(fi.name, o.size_pt)
             t.setCharSpace(o.letter_spacing_pt)
-            t.textOut(o.content)
+            t.textOut(fonts.nfc(o.content))
             c.drawText(t)
             self.r.count(page, "texto_vivo")
         c.restoreState()

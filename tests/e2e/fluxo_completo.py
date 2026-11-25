@@ -1,0 +1,67 @@
+import asyncio, json
+from playwright.async_api import async_playwright
+exec(open(__file__.replace('fluxo_completo.py','fluxo_basico.py')).read().split('async def main')[0])  # reutiliza drag()
+SHOT='/tmp/e2e/'
+async def main():
+    async with async_playwright() as p:
+        b=await p.chromium.launch(executable_path=__import__('os').environ.get('CHROME','/usr/bin/google-chrome'))
+        ctx=await b.new_context(viewport={'width':1500,'height':1000}, accept_downloads=True)
+        pg=await ctx.new_page(); errs=[]
+        pg.on('pageerror',lambda e:errs.append('PAGE:'+str(e)))
+        pg.on('console',lambda m:errs.append('CON:'+m.text) if m.type=='error' else None)
+        pg.on('response',lambda r: errs.append('404:'+r.url) if r.status==404 else None)
+        await pg.goto(__import__('os').environ.get('URL','http://localhost:4173/'))
+        await pg.fill('input[placeholder^="Ex.:"]','Família de Légua')
+        await pg.set_input_files('input[type=file][multiple]','/tmp/e2e/mockup.png')
+        await pg.wait_for_selector('.stage-svg')
+        await pg.click('text=+ Frente'); await drag(pg,'.stage-svg',(40/1800,60/1000),(600/1800,940/1000))
+        await pg.click('text=+ Costas'); await drag(pg,'.stage-svg',(640/1800,60/1000),(1200/1800,940/1000))
+        await pg.click('text=Separar as peças →'); await pg.wait_for_selector('text=Separar todas as peças')
+        await pg.click('text=Separar todas as peças')
+        await pg.wait_for_function("!document.querySelector('.busyline')",timeout=180000)
+        print('sep', await pg.locator('.separar .canvasbox .hint').last.text_content())
+        # pincel: marca a estrela como "Imagem" e reprocessa só a frente
+        await pg.click('.brushes button:has-text("Imagem")')
+        await drag(pg,'.paint canvas',(0.40,0.86),(0.60,0.86))
+        await pg.click('text=Separar de novo'); await pg.wait_for_function("!document.querySelector('.busyline')",timeout=180000)
+        print('apos pincel', await pg.locator('.separar .canvasbox .hint').last.text_content())
+        await pg.screenshot(path=SHOT+'4-pincel.png')
+        await pg.click('text=Aprovar tudo desta peça')
+        await pg.click('.separar .bar button:has-text("Costas")'); await pg.click('text=Aprovar tudo desta peça')
+        await pg.click('text=Ir para o editor →'); await pg.wait_for_selector('.page-svg'); await pg.wait_for_timeout(500)
+        n1=await pg.locator('.layers li').count()
+        # texto com acento
+        await pg.click('text=+ Texto'); await pg.wait_for_selector('.props textarea')
+        await pg.fill('.props textarea','Família de Légua')
+        await pg.check('.props label:has-text("Acentos revisados") input')
+        await pg.check('.props label:has-text("Aprovado") input')
+        # mover o texto pelas propriedades e arrastar no canvas
+        ys=pg.locator('.props .num:has-text("Y") input'); await ys.fill('40')
+        sel=pg.locator('.selbox rect').first; bb=await sel.bounding_box()
+        await pg.mouse.move(bb['x']+bb['width']/2, bb['y']+bb['height']/2); await pg.mouse.down(); await pg.mouse.move(bb['x']+bb['width']/2+30, bb['y']+bb['height']/2, steps=5); await pg.mouse.up()
+        x_after=await pg.locator('.props .num:has-text("X") input').input_value()
+        print('texto X apos arrastar (mm):', x_after)
+        await pg.keyboard.press('Control+z'); x_undo=await pg.locator('.props .num:has-text("X") input').input_value(); print('apos desfazer:', x_undo)
+        await pg.keyboard.press('Control+Shift+z')
+        await pg.screenshot(path=SHOT+'5-editor.png')
+        n2=await pg.locator('.layers li').count(); print('objetos', n1, '->', n2)
+        # salvar
+        async with pg.expect_download() as di: await pg.click('header >> text=Salvar')
+        d=await di.value; await d.save_as('/tmp/e2e/proj.vizuvetor'); print('salvo', d.suggested_filename)
+        # novo + reabrir
+        await pg.click('header >> text=Novo'); await pg.click('text=Descartar e começar')
+        await pg.set_input_files('header input[type=file]','/tmp/e2e/proj.vizuvetor')
+        await pg.wait_for_selector('.page-svg', timeout=30000); await pg.wait_for_timeout(500)
+        n3=await pg.locator('.layers li').count(); print('reaberto objetos', n3, 'nome', await pg.locator('.pname').input_value())
+        # exportar
+        await pg.click('nav >> text=5 Exportar')
+        await pg.wait_for_selector('text=Gerar PDF de 3 páginas')
+        print('pendencias:', await pg.locator('.exportar .side').inner_text() if False else (await pg.locator('.pend li').count()))
+        await pg.screenshot(path=SHOT+'6-exportar.png')
+        async with pg.expect_download(timeout=300000) as di: await pg.click('text=Gerar PDF de 3 páginas')
+        d=await di.value; await d.save_as('/tmp/e2e/saida.pdf'); print('pdf', d.suggested_filename)
+        await pg.wait_for_timeout(500)
+        await pg.screenshot(path=SHOT+'7-resultado.png')
+        print('ERROS', errs)
+        await b.close()
+asyncio.run(main())

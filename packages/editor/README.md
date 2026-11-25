@@ -1,4 +1,4 @@
-# packages/editor — não iniciado
+# packages/editor — ainda dentro do app
 
-Editor de canvas (Fabric.js ou equivalente) com o modelo de domínio de
-`packages/project-schema` como fonte de verdade. Etapa 2 do plano.
+Na etapa 2 o editor (canvas SVG em mm) está em `apps/web/src/steps/Editor.tsx` e `apps/web/src/render.tsx`.
+Será extraído para este pacote quando a casca desktop (Tauri, etapa 4) precisar reutilizá-lo.

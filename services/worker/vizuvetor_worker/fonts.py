@@ -4,14 +4,22 @@ Texto vivo (pág. 1) e texto em curvas (pág. 3) usam o MESMO posicionamento:
 avanços do HarfBuzz com `kern` e `liga` desligados, que coincidem com as
 larguras que o ReportLab usa ao escrever o texto vivo. Assim a pág. 3 fica
 em registro com a pág. 1. Limitação documentada: sem kerning nem ligaduras.
+
+Sem HarfBuzz (ex.: navegador via Pyodide), o posicionamento cai para os avanços
+do fontTools (cmap + hmtx), que é o mesmo resultado para texto latino em NFC.
+O texto é sempre normalizado para NFC antes de posicionar e de escrever.
 """
 from __future__ import annotations
 
 import hashlib
+import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
 
-import uharfbuzz as hb
+try:
+    import uharfbuzz as hb
+except ImportError:  # Pyodide / ambientes sem HarfBuzz
+    hb = None
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib import TTFont
 
@@ -49,28 +57,45 @@ def _hb_font(path: str):
 
 def missing_glyphs(path: str, text: str) -> list[str]:
     cmap = TTFont(path, lazy=True).getBestCmap()
-    return sorted({ch for ch in text if not ch.isspace() and ord(ch) not in cmap})
+    return sorted({ch for ch in nfc(text) if not ch.isspace() and ord(ch) not in cmap})
+
+
+def nfc(text: str) -> str:
+    return unicodedata.normalize("NFC", text)
 
 
 def shape(path: str, text: str, size_pt: float, letter_spacing_pt: float = 0.0):
     """Lista de (glyph_name, x_pt, y_pt) e largura total, em pontos."""
-    font = _hb_font(path)
-    buf = hb.Buffer()
-    buf.add_str(text)
-    buf.guess_segment_properties()
-    hb.shape(font, buf, FEATURES)
+    text = nfc(text)
     upm = info(path).upm
     k = size_pt / upm
-    tt = TTFont(path, lazy=True)
-    order = tt.getGlyphOrder()
+    tt = _tt(path)
     x = 0.0
     out = []
-    for gi, gp in zip(buf.glyph_infos, buf.glyph_positions):
-        out.append((order[gi.codepoint], x + gp.x_offset * k, gp.y_offset * k))
-        x += gp.x_advance * k + letter_spacing_pt
+    if hb is not None:
+        font = _hb_font(path)
+        buf = hb.Buffer()
+        buf.add_str(text)
+        buf.guess_segment_properties()
+        hb.shape(font, buf, FEATURES)
+        order = tt.getGlyphOrder()
+        for gi, gp in zip(buf.glyph_infos, buf.glyph_positions):
+            out.append((order[gi.codepoint], x + gp.x_offset * k, gp.y_offset * k))
+            x += gp.x_advance * k + letter_spacing_pt
+    else:
+        cmap, hmtx = tt.getBestCmap(), tt["hmtx"]
+        for ch in text:
+            g = cmap.get(ord(ch), ".notdef")
+            out.append((g, x, 0.0))
+            x += hmtx[g][0] * k + letter_spacing_pt
     if out:
         x -= letter_spacing_pt
     return out, x
+
+
+@lru_cache(maxsize=32)
+def _tt(path: str):
+    return TTFont(path, lazy=True)
 
 
 class _RLPen(BasePen):

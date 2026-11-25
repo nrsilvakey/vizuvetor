@@ -265,3 +265,19 @@ def test_svgpath_relativos_e_quadraticas():
         svgpath.parse("L10 10")
     with pytest.raises(svgpath.PathError):
         svgpath.parse("M0 0 X")
+
+
+def test_posicionamento_sem_harfbuzz_igual(monkeypatch):
+    """No navegador (Pyodide) não há HarfBuzz: o fallback do fontTools dá as mesmas posições."""
+    from vizuvetor_worker import fonts
+
+    f = str(ROOT / "tests" / "fixtures" / "fonts" / "DejaVuSans-Bold.ttf")
+    decomposta = "Fami\u0301lia de Le\u0301gua"  # acentos combinantes -> NFC
+    com = [fonts.shape(f, t, 40, 1.5) for t in TEXTOS + [decomposta]]
+    monkeypatch.setattr(fonts, "hb", None)
+    sem = [fonts.shape(f, t, 40, 1.5) for t in TEXTOS + [decomposta]]
+    for (ga, wa), (gb, wb) in zip(com, sem):
+        assert [g[0] for g in ga] == [g[0] for g in gb]
+        assert wa == pytest.approx(wb, abs=1e-6)
+        assert all(abs(a[1] - b[1]) < 1e-6 for a, b in zip(ga, gb))
+    assert com[0] == com[-1]  # decomposto e composto ficam iguais

@@ -8,3 +8,5 @@ target/
 *.egg-info/
 tests/fixtures/camiseta_sintetica/*.png
 /out/
+apps/web/public/py/worker.json
+apps/web/dist/
