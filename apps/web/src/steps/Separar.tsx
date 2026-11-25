@@ -5,6 +5,7 @@ import { cutObject, illustrationBackground, separatePiece } from "../lib/separat
 import { ART_LABEL, ArtType, EngineSettings, Obj, ROLE_LABEL, T0, TextObject, uid, VectorObject } from "../model";
 import { ensureLibraryFont, fontLibrary, inkMask, matchFonts, ocr, textPlacement } from "../lib/fontmatch";
 import { PieceObjects } from "../render";
+import { analisar, IaElemento, IaResultado, TIPO_LABEL, TRAT_COR, TRAT_LABEL } from "../lib/ia";
 
 type Tool = "laco" | "caixa" | "pincel" | "texto";
 const BRUSH = [[1, "Vetor", "#e4003a"], [2, "Imagem", "#1f9d55"], [3, "Fundo", "#2f7df6"], [0, "Apagar correção", "#888"]] as const;
@@ -26,7 +27,10 @@ export default function Separar({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState("");
   const [stats, setStats] = useState<Record<string, any>>({});
   const [ras, setRas] = useState<ImageBitmap | null>(null);
-  const [tj, setTj] = useState<any>(null); // trabalho de texto: caixa, tinta, OCR, ranking
+  const [tj, setTj] = useState<any>(null);
+  const tjState = tj; // trabalho de texto: caixa, tinta, OCR, ranking
+  const [ia, setIa] = useState<(IaResultado & { pid: string }) | null>(null);
+  const [iaBusy, setIaBusy] = useState("");
   const myFont = useRef<HTMLInputElement>(null);
   const ov = useRef<HTMLCanvasElement>(null);
   const drawing = useRef<{ pts: number[][] } | null>(null);
@@ -52,7 +56,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
     })();
     return () => { live = false; };
   }, [pid, src?.raster]);
-  useEffect(() => { drawOverlay(); }, [ras, tool]);
+  useEffect(() => { drawOverlay(); }, [ras, tool, ia]);
 
   // ---------- desenho na sobreposição ----------
   function drawOverlay(extra?: number[][], box = false) {
@@ -63,6 +67,19 @@ export default function Separar({ onDone }: { onDone: () => void }) {
       const F = maps.get(pid), id = x.createImageData(c.width, c.height);
       if (F) for (let i = 0; i < F.length; i++) if (F[i]) { const col = [0, [228, 0, 58], [31, 157, 85], [47, 125, 246]][F[i]] as number[]; id.data.set([col[0], col[1], col[2], 115], i * 4); }
       x.putImageData(id, 0, 0);
+    }
+    if (ia && ia.pid === pid) {
+      const lw = Math.max(2, ras.width / 400), fs = Math.max(12, ras.width / 60);
+      x.font = `bold ${fs}px system-ui, sans-serif`; x.textBaseline = "bottom";
+      ia.elementos.forEach((el, i) => {
+        const col = TRAT_COR[el.tratamento]; x.globalAlpha = el.usar || el.tratamento === "vetor" || el.tratamento === "fundo" ? 1 : 0.45;
+        x.lineWidth = lw; x.strokeStyle = col; x.setLineDash(el.feito ? [] : [lw * 3, lw * 2]);
+        x.strokeRect(el.box.x, el.box.y, el.box.w, el.box.h);
+        const t = `${i + 1} ${el.rotulo}`, tw = x.measureText(t).width + fs * 0.5;
+        x.fillStyle = col; x.fillRect(el.box.x, Math.max(fs * 1.25, el.box.y) - fs * 1.25, tw, fs * 1.25);
+        x.fillStyle = "#fff"; x.fillText(t, el.box.x + fs * 0.25, Math.max(fs * 1.25, el.box.y) - fs * 0.1);
+      });
+      x.globalAlpha = 1; x.setLineDash([]);
     }
     if (extra && extra.length > 1) {
       x.lineWidth = Math.max(2, ras.width / 300); x.strokeStyle = "#00c8ff"; x.fillStyle = "rgba(0,200,255,.12)";
@@ -124,21 +141,23 @@ export default function Separar({ onDone }: { onDone: () => void }) {
   function clearMap() { maps.delete(pid); drawOverlay(); setSrc({ forceMap: undefined }); }
 
   // ---------- recorte de objeto ----------
-  async function doCut(poly: number[][], tight: boolean) {
-    if (!ras) return;
+  async function doCut(poly: number[][], tight: boolean, opt: { name?: string; z?: number; rebuild?: boolean; prevCuts?: { objId: string; mask: string }[] } = {}) {
+    if (!ras) return null;
     setBusy("Recortando…");
     try {
-      const maxZ = Math.max(0, ...pc.objects.map((o) => o.z));
-      const r = await cutObject({ pieceId: pid, raster: ras, poly, tight, widthMm: pc.width_mm, heightMm: pc.height_mm, name: cutName || "Recorte", z: maxZ + 10 });
+      const maxZ = opt.z ?? Math.max(0, ...pc.objects.map((o) => o.z)) + 10;
+      const r = await cutObject({ pieceId: pid, raster: ras, poly, tight, widthMm: pc.width_mm, heightMm: pc.height_mm, name: opt.name || cutName || "Recorte", z: maxZ });
       for (const [k, v] of r.assets) assets.set(k, v);
-      const cuts = [...(src?.cuts || []), { objId: r.obj.id, mask: r.maskName }];
+      const cut = { objId: r.obj.id, mask: r.maskName };
+      const cuts = [...(opt.prevCuts || src?.cuts || []), cut];
       update((d) => ({
         project: { ...d.project!, pieces: d.project!.pieces.map((x) => (x.id === pid ? { ...x, objects: [...x.objects, r.obj] } : x)) },
-        app: { ...d.app, sources: d.app.sources.map((s) => (s.pieceId === pid ? { ...s, cuts } : s)) },
+        app: { ...d.app, sources: d.app.sources.map((s) => (s.pieceId === pid ? { ...s, cuts: [...(s.cuts || []), cut] } : s)) },
       }));
       toast(`"${r.obj.name}" recortado (confiança ${Math.round((r.obj.confidence || 0) * 100)}%)`);
-      if (art === "ilustracao") await rebuildBackground(cuts);
-    } catch (e: any) { toast(e.message); }
+      if (art === "ilustracao" && opt.rebuild !== false) await rebuildBackground(cuts);
+      return cuts;
+    } catch (e: any) { toast(e.message); return null; }
     finally { setBusy(""); drawOverlay(); bump(); }
   }
   async function rebuildBackground(cuts = src?.cuts || []) {
@@ -155,12 +174,16 @@ export default function Separar({ onDone }: { onDone: () => void }) {
   }
 
   // ---------- texto: ler, identificar a fonte e recriar ----------
+  function textJob(box: { x: number; y: number; w: number; h: number }) {
+    const [c, x] = canvas(ras!.width, ras!.height); x.drawImage(ras!, 0, 0);
+    const b = { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h) };
+    return { box: b, ink: inkMask(x.getImageData(0, 0, c.width, c.height), b) };
+  }
   async function startText(a: number[], b: number[]) {
     if (!ras) return;
     const box = { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(a[0] - b[0]), h: Math.abs(a[1] - b[1]) };
     if (box.w < 8 || box.h < 8) return drawOverlay();
-    const [c, x] = canvas(ras.width, ras.height); x.drawImage(ras, 0, 0);
-    const ink = inkMask(x.getImageData(0, 0, c.width, c.height), box);
+    const { ink } = textJob(box);
     setTj({ box, ink, text: "", busy: "Lendo o texto…", ranked: null });
     // imagem binarizada (tinta preta sobre branco) para o OCR
     const [oc, ox] = canvas(ink.w + 40, ink.h + 40), od = ox.createImageData(oc.width, oc.height);
@@ -171,22 +194,27 @@ export default function Separar({ onDone }: { onDone: () => void }) {
     setTj((t: any) => t && ({ ...t, text: r?.text || "", conf: r?.conf, busy: "" }));
     if (!r) toast("Não consegui ler automaticamente — digite o texto");
   }
-  async function identify(extraFont?: string) {
-    if (!tj?.text?.trim()) return toast("Digite o texto que está na caixa");
-    setTj({ ...tj, busy: "Comparando fontes…" });
+  async function fontCands(extraFont?: string) {
     const libf = await fontLibrary();
     const cands: { path: string; nome: string }[] = [];
     for (const f of libf) cands.push({ path: await ensureLibraryFont(assets, f.arquivo), nome: f.nome });
     for (const k of assets.keys()) if (k.startsWith("fonts/") && !k.startsWith("fonts/biblioteca/") && /\.(ttf|otf)$/i.test(k)) cands.push({ path: k, nome: k.replace("fonts/", "") + " (sua)" });
     if (extraFont && !cands.some((c) => c.path === extraFont)) cands.push({ path: extraFont, nome: extraFont.replace("fonts/", "") + " (sua)" });
+    return cands;
+  }
+  async function identify(extraFont?: string) {
+    if (!tj?.text?.trim()) return toast("Digite o texto que está na caixa");
+    setTj({ ...tj, busy: "Comparando fontes…" });
+    const cands = await fontCands(extraFont);
     try {
       const { ranked, tightBox } = await matchFonts(assets, tj.ink, tj.text.trim(), cands);
       setTj((t: any) => ({ ...t, ranked: ranked.slice(0, 6), tightBox, busy: "" }));
     } catch (e: any) { toast(e.message); setTj((t: any) => ({ ...t, busy: "" })); }
   }
-  async function useFont(m: any) {
+  async function useFont(m: any, job?: any, quiet = false) {
     if (!ras) return;
     const pxToMm = pc.width_mm / ras.width;
+    const tj = job || tjState;
     const pl = await textPlacement(assets, m, tj.ink, tj.tightBox, tj.text.trim(), pxToMm);
     const t: TextObject = { id: uid("txt"), name: `Texto “${tj.text.trim()}”`, type: "text", content: tj.text.trim(), font_path: m.path, size_pt: Math.round(pl.size_pt * 10) / 10,
       fill: tj.ink.color, align: "left", letter_spacing_pt: Math.round(pl.letter_spacing_pt * 100) / 100, ocr_text: tj.text.trim(), reviewed: false,
@@ -203,13 +231,97 @@ export default function Separar({ onDone }: { onDone: () => void }) {
       }).filter((o) => o.type !== "vector" || (o as VectorObject).paths.length);
       return { ...x, objects: [...objs, t] };
     }) } }));
-    toast(`Texto recriado em ${m.nome}${removed ? ` (substituiu ${removed} forma(s) vetorizada(s))` : ""} — revise os acentos`);
-    setTj(null); drawOverlay(); bump();
+    if (!quiet) toast(`Texto recriado em ${m.nome}${removed ? ` (substituiu ${removed} forma(s) vetorizada(s))` : ""} — revise os acentos`);
+    if (!quiet) setTj(null);
+    drawOverlay(); bump();
   }
   async function loadMyFont(f: File) {
     const name = "fonts/" + f.name.replace(/[^\w.-]+/g, "_");
     assets.set(name, new Blob([await f.arrayBuffer()], { type: "font/ttf" }));
     await identify(name);
+  }
+
+  // ---------- identificação de elementos por IA ----------
+  async function runIa() {
+    if (!ras) return;
+    setIaBusy("Analisando a arte com IA…");
+    try {
+      const ctx = `peça: ${ROLE_LABEL[pc.role]}; tipo escolhido no app: ${ART_LABEL[art]}; tamanho ${Math.round(pc.width_mm)}×${Math.round(pc.height_mm)} mm`;
+      const r = await analisar(ras, ctx);
+      setIa({ ...r, pid });
+      const n = r.elementos.length;
+      toast(n ? `${n} elemento(s) identificado(s) — confira as caixas` : "A IA não encontrou elementos");
+    } catch (e: any) { toast(e.message); }
+    finally { setIaBusy(""); }
+  }
+  function setEl(id: string, patch: Partial<IaElemento>) { setIa((r) => r && ({ ...r, elementos: r.elementos.map((e) => (e.id === id ? { ...e, ...patch } : e)) })); }
+  function paintBox(b: IaElemento["box"], v: number) {
+    if (!ras) return;
+    let F = maps.get(pid);
+    if (!F) { F = new Uint8Array(ras.width * ras.height); maps.set(pid, F); }
+    for (let y = Math.max(0, Math.floor(b.y)); y < Math.min(ras.height, b.y + b.h); y++)
+      for (let x = Math.max(0, Math.floor(b.x)); x < Math.min(ras.width, b.x + b.w); x++) F[y * ras.width + x] = v;
+    dirty.current = true;
+  }
+  const boxPoly = (b: IaElemento["box"]) => [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]];
+  async function textFor(el: IaElemento) {
+    const job: any = { ...textJob(el.box), text: (el.texto || "").trim() };
+    if (!job.text) return null;
+    const { ranked, tightBox } = await matchFonts(assets, job.ink, job.text, await fontCands());
+    return { ...job, ranked: ranked.slice(0, 6), tightBox };
+  }
+  async function applyEl(el: IaElemento) {
+    if (!ras) return;
+    try {
+      if (el.tratamento === "texto_vivo") {
+        setIaBusy(`Comparando fontes para “${el.texto}”…`);
+        const job = await textFor(el);
+        if (!job) { toast("Sem texto transcrito — use a ferramenta Texto"); return; }
+        setTool("texto"); setTj({ ...job, busy: "" });
+        toast("Escolha a fonte na lista");
+      } else if (el.tratamento === "bitmap_recortado") {
+        await doCut(boxPoly(el.box), false, { name: el.rotulo });
+      } else if (el.tratamento === "descartar") {
+        if (art === "ilustracao") { toast("Na ilustração, recorte por cima ou apague no editor"); return; }
+        paintBox(el.box, 3); await persistMap(); drawOverlay();
+        toast(`“${el.rotulo}” marcado como fundo — clique em “Separar de novo”`);
+      } else {
+        toast(el.tratamento === "vetor" ? "Este elemento já sai como vetor na separação" : "Este elemento faz parte do fundo");
+        return;
+      }
+      setEl(el.id, { feito: true });
+    } catch (e: any) { toast(e.message); }
+    finally { setIaBusy(""); }
+  }
+  async function applyAll() {
+    if (!ia || !ras) return;
+    const els = ia.elementos.filter((e) => e.usar && !e.feito);
+    if (!els.length) return toast("Nenhuma sugestão marcada");
+    try {
+      const disc = els.filter((e) => e.tratamento === "descartar");
+      if (art !== "ilustracao") {
+        for (const e of disc) paintBox(e.box, 3);
+        if (disc.length) await persistMap();
+        setIaBusy("Separando a peça…");
+        await runCores([pid]);
+      }
+      let cuts = src?.cuts || [], z = Math.max(0, ...pc.objects.map((o) => o.z)) + 10;
+      for (const e of els.filter((e) => e.tratamento === "bitmap_recortado")) {
+        setIaBusy(`Recortando “${e.rotulo}”…`);
+        const c = await doCut(boxPoly(e.box), false, { name: e.rotulo, z: z++, rebuild: false, prevCuts: cuts });
+        if (c) cuts = c;
+      }
+      if (art === "ilustracao" && cuts.length) await rebuildBackground(cuts);
+      let nt = 0;
+      for (const e of els.filter((e) => e.tratamento === "texto_vivo")) {
+        setIaBusy(`Redesenhando “${e.texto}”…`);
+        const job = await textFor(e);
+        if (job?.ranked?.[0]) { await useFont(job.ranked[0], job, true); nt++; }
+      }
+      setIa((r) => r && ({ ...r, elementos: r.elementos.map((e) => (els.some((x) => x.id === e.id) ? { ...e, feito: true } : e)) }));
+      toast(`Sugestões aplicadas${nt ? ` · ${nt} texto(s) recriado(s) — revise as fontes` : ""}`);
+    } catch (e: any) { toast(e.message); }
+    finally { setIaBusy(""); drawOverlay(); bump(); }
   }
 
   // ---------- separação automática ----------
@@ -280,6 +392,25 @@ export default function Separar({ onDone }: { onDone: () => void }) {
           : art === "ilustracao"
           ? "Nada vira vetor sozinho. O fundo fica em bitmap; cada personagem/letreiro que você recortar vira um bitmap próprio, com o fundo refeito por trás. No editor, “Vetorizar uma cor” cria a versão em vetor de letreiros e faixas."
           : "Cores chapadas viram vetor por cor; degradês e texturas viram imagem; o fundo é reconhecido e refeito."}</p>
+
+        <h2>Identificar elementos (IA)</h2>
+        <button className="btn" disabled={!!iaBusy || !ras} onClick={runIa}>{iaBusy || (ia?.pid === pid ? "Analisar de novo" : "Identificar elementos com IA")}</button>
+        {ia?.pid === pid && (<div className="card on ia">
+          {ia.tipo_de_arte !== ({ cores: "chapada", uniforme: "uniforme", ilustracao: "ilustracao" } as const)[art] && (
+            <p className="hint small">A IA acha que esta peça é <b>{ia.tipo_de_arte === "chapada" ? ART_LABEL.cores : ART_LABEL[ia.tipo_de_arte]}</b>.{" "}
+              <button onClick={() => setArt(ia.tipo_de_arte === "chapada" ? "cores" : ia.tipo_de_arte)}>Trocar</button></p>)}
+          {ia.cor_base && <p className="hint small">Cor base: <i style={{ display: "inline-block", width: 14, height: 14, background: ia.cor_base, verticalAlign: -2, border: "1px solid #999" }} /> {ia.cor_base.toUpperCase()}</p>}
+          <ul className="ialist">{ia.elementos.map((el, i) => (
+            <li key={el.id} className={el.feito ? "feito" : ""}>
+              <label><input type="checkbox" checked={el.usar} disabled={el.tratamento === "vetor" || el.tratamento === "fundo" || el.feito} onChange={(e) => setEl(el.id, { usar: e.target.checked })} />
+                <i style={{ background: TRAT_COR[el.tratamento] }} /> <b>{i + 1}. {el.rotulo}</b></label>
+              <span className="hint small">{TIPO_LABEL[el.tipo] || el.tipo} → {TRAT_LABEL[el.tratamento]}{el.texto ? ` · “${el.texto}”` : ""}{el.estilo_fonte ? ` · ${el.estilo_fonte}` : ""} · {Math.round(el.confianca * 100)}%</span>
+              {!el.feito && el.tratamento !== "vetor" && el.tratamento !== "fundo" && <button disabled={!!iaBusy} onClick={() => applyEl(el)}>Aplicar</button>}
+              {el.feito && <span className="hint small">✓ feito</span>}
+            </li>))}</ul>
+          <div className="row"><button className="on" disabled={!!iaBusy} onClick={applyAll}>Aplicar sugestões marcadas</button><button onClick={() => setIa(null)}>Fechar</button></div>
+          <p className="hint small">A IA erra: confira cada caixa. Textos são recriados com a fonte mais parecida da biblioteca; troque no editor se preciso.</p>
+        </div>)}
 
         <h2>Ferramenta</h2>
         <div className="brushes">

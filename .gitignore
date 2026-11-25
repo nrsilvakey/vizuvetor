@@ -10,3 +10,5 @@ tests/fixtures/camiseta_sintetica/*.png
 /out/
 apps/web/public/py/worker.json
 apps/web/dist/
+apps/web/public/api/config.php
+deploy/vizuvetor-config.php

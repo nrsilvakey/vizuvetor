@@ -1,0 +1,5 @@
+# bloqueia acesso direto à configuração
+<Files "config.php">
+  Require all denied
+</Files>
+Options -Indexes
