@@ -11,7 +11,7 @@ let worker: Worker | null = null;
 let jobs = 0;
 
 export function runEngine(img: CanvasImageSource & { width: number; height: number }, S: EngineSettings, force: Uint8Array | null,
-  onProgress: (t: string) => void): Promise<EngineResult> {
+  onProgress: (t: string) => void, extra: Record<string, unknown> = {}): Promise<EngineResult> {
   const sc = Math.min(2, S.res / Math.max(img.width, img.height));
   const [c, x] = canvas(img.width * sc, img.height * sc);
   x.drawImage(img, 0, 0, c.width, c.height);
@@ -41,7 +41,7 @@ export function runEngine(img: CanvasImageSource & { width: number; height: numb
     worker!.onerror = (e) => reject(new Error(e.message || "erro no motor"));
     const tr: Transferable[] = [data.data.buffer];
     if (f) tr.push(f);
-    worker!.postMessage({ id, w: c.width, h: c.height, buf: data.data.buffer, S: { ...S, auto: true, k: 8, bgm: "img", enh: false }, force: f }, tr);
+    worker!.postMessage({ id, w: c.width, h: c.height, buf: data.data.buffer, S: { ...S, auto: true, k: 8, bgm: "img", enh: false, ...extra }, force: f }, tr);
   });
 }
 
@@ -77,10 +77,12 @@ function regions(m: Uint8Array, w: number, h: number, minArea: number) {
 
 export async function separatePiece(opts: {
   pieceId: string; raster: HTMLCanvasElement | ImageBitmap; widthMm: number; heightMm: number;
-  S: EngineSettings; force: Uint8Array | null; onProgress: (t: string) => void;
+  S: EngineSettings; force: Uint8Array | null; onProgress: (t: string) => void; uniform?: boolean;
 }): Promise<{ objects: Obj[]; assets: Map<string, Blob>; stats: { cores: number; vetorPct: number; imagemPct: number; fundoPct: number; ms: number } }> {
   const { pieceId, raster, widthMm, S } = opts;
-  const r = await runEngine(raster, S, opts.force, opts.onProgress);
+  // uniforme: sem fundo por borda nem degradê->imagem; dobras não viram cores; cor dominante = fundo da peça
+  const r = await runEngine(raster, opts.uniform ? { ...S, stack: true } : S, opts.force, opts.onProgress,
+    opts.uniform ? { bgm: "vec", thr: 0, flat: true, de: Math.max(S.de, 14) } : {});
   const { w, h } = r, k = widthMm / w, assets = new Map<string, Blob>(), objects: Obj[] = [];
   const RW = raster.width, RH = raster.height;
   // fundo completo (reconstruído atrás da arte quando houver)
@@ -129,8 +131,19 @@ export async function separatePiece(opts: {
       objects.push(bmp);
     }
   }
+  // uniforme: a maior camada (empilhada = silhueta da peça) vira o fundo em cor base, vetorial
+  let layers = r.layers;
+  if (opts.uniform && layers.length) {
+    const base = layers[0];
+    objects.push({
+      id: uid("fundo"), name: `Fundo camiseta (cor base ${base.hex.toUpperCase()})`, type: "background", kind: "vector", asset: null, width_mm: widthMm, height_mm: opts.heightMm,
+      paths: base.objs.map((d) => ({ d: scalePath(d, k), fill: base.hex, fill_rule: "evenodd" as const })), z: 0, transform: T0(), visible: true,
+      approved: false, origin: "motor", status: "rascunho", reconstructed_mask: null, confidence: Math.round(base.conf * 100) / 100,
+    } as BackgroundObject);
+    layers = layers.slice(1);
+  }
   // vetores: um objeto por cor (cada forma é um caminho próprio, com seus furos)
-  r.layers.forEach((l, i) => {
+  layers.forEach((l, i) => {
     const v: VectorObject = {
       id: uid("vet"), name: `Cor ${i + 1} ${l.hex.toUpperCase()}`, type: "vector",
       paths: l.objs.map((d) => ({ d: scalePath(d, k), fill: l.hex, fill_rule: "evenodd" as const })),

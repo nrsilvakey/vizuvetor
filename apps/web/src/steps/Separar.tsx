@@ -159,14 +159,14 @@ export default function Separar({ onDone }: { onDone: () => void }) {
       setBusy(`${ROLE_LABEL[piece.role]}: preparando…`);
       try {
         const r = await decode(assets.get(s.raster)!);
-        const res = await separatePiece({ pieceId: id, raster: r, widthMm: piece.width_mm, heightMm: piece.height_mm, S, force: maps.get(id) || null,
+        const res = await separatePiece({ pieceId: id, raster: r, widthMm: piece.width_mm, heightMm: piece.height_mm, S, force: maps.get(id) || null, uniform: s.artType === "uniforme",
           onProgress: (t) => setBusy(`${ROLE_LABEL[piece.role]}: ${t}`) });
         for (const k of [...assets.keys()]) if (k.startsWith(`pc-${id}-`) && !(s.cuts || []).some((c) => k.includes(c.objId))) assets.delete(k);
         for (const [k, v] of res.assets) assets.set(k, v);
         const keep = (o: Obj) => o.origin === "manual";
         update((d) => ({ ...d, project: { ...d.project!, pieces: d.project!.pieces.map((x) => (x.id === id ? { ...x, objects: [...x.objects.filter(keep), ...res.objects] } : x)) } }));
         setStats((st) => ({ ...st, [id]: res.stats }));
-        if (res.stats.vetorPct < 0.35 && res.stats.cores > 12) toast(`${ROLE_LABEL[piece.role]} parece ilustração: experimente o tipo "Ilustração"`);
+        if (s.artType !== "uniforme" && res.stats.vetorPct < 0.35 && res.stats.cores > 12) toast(`${ROLE_LABEL[piece.role]} parece ilustração: experimente o tipo "Ilustração"`);
       } catch (e: any) { toast(`Erro ao separar ${ROLE_LABEL[piece.role]}: ${e.message}`); }
     }
     setBusy(""); bump();
@@ -206,14 +206,16 @@ export default function Separar({ onDone }: { onDone: () => void }) {
           </figure>
         </div>
         {busy && <p className="busyline">{busy}</p>}
-        {st && art === "cores" && <p className="hint">{st.cores} cores em vetor · {Math.round(st.vetorPct * 100)}% vetor · {Math.round(st.imagemPct * 100)}% imagem · {Math.round(st.fundoPct * 100)}% fundo · {(st.ms / 1000).toFixed(1)} s</p>}
+        {st && art !== "ilustracao" && <p className="hint">{st.cores} cores em vetor · {Math.round(st.vetorPct * 100)}% vetor · {Math.round(st.imagemPct * 100)}% imagem · {Math.round(st.fundoPct * 100)}% fundo · {(st.ms / 1000).toFixed(1)} s</p>}
       </div>
       <aside className="side">
         <h2>Tipo de arte</h2>
         <select value={art} onChange={(e) => setArt(e.target.value as ArtType)} aria-label="Tipo de arte">
           {(Object.keys(ART_LABEL) as ArtType[]).map((k) => <option key={k} value={k}>{ART_LABEL[k]}</option>)}
         </select>
-        <p className="hint small">{art === "ilustracao"
+        <p className="hint small">{art === "uniforme"
+          ? "Contorne a peça na etapa 2 para descartar estádio e etiquetas. As dobras e a luz do tecido são ignoradas: a cor dominante vira o fundo da peça em vetor; listras, escudos e números viram vetores por cor. Logos de terceiros (ex.: material esportivo) devem ser removidos ou trocados pelo arquivo oficial."
+          : art === "ilustracao"
           ? "Nada vira vetor sozinho. O fundo fica em bitmap; cada personagem/letreiro que você recortar vira um bitmap próprio, com o fundo refeito por trás. No editor, “Vetorizar uma cor” cria a versão em vetor de letreiros e faixas."
           : "Cores chapadas viram vetor por cor; degradês e texturas viram imagem; o fundo é reconhecido e refeito."}</p>
 
@@ -221,7 +223,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
         <div className="brushes">
           <button className={tool === "laco" ? "on" : ""} onClick={() => setTool("laco")}>Laço (rente)</button>
           <button className={tool === "caixa" ? "on" : ""} onClick={() => setTool("caixa")}>Caixa</button>
-          {art === "cores" && <button className={tool === "pincel" ? "on" : ""} onClick={() => setTool("pincel")}>Pincel de correção</button>}
+          {art !== "ilustracao" && <button className={tool === "pincel" ? "on" : ""} onClick={() => setTool("pincel")}>Pincel de correção</button>}
         </div>
         {tool !== "pincel" && (<>
           <label className="fld">Nome do próximo recorte<input value={cutName} onChange={(e) => setCutName(e.target.value)} /></label>
@@ -238,7 +240,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
           <button className="btn" onClick={clearMap}>Limpar correções desta peça</button>
         </>)}
 
-        {art === "cores" && (<>
+        {art !== "ilustracao" && (<>
           <h2>Ajustes do motor</h2>
           <label className="rng">Degradês viram imagem <output>{S.thr}%</output><input type="range" min={0} max={100} value={S.thr} onChange={(e) => setS({ thr: +e.target.value })} /></label>
           <label className="rng">Fidelidade de cor <output>ΔE {S.de}</output><input type="range" min={2} max={16} step={0.5} value={S.de} onChange={(e) => setS({ de: +e.target.value })} /></label>

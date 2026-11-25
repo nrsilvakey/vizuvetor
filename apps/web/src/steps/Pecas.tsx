@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../ctx";
-import { canvas, cropRect, toBlob, warpQuad } from "../lib/image";
+import { applyH, canvas, cropRect, homography, toBlob, warpQuad } from "../lib/image";
 import { layoutPieces, Piece, PieceSource, Quad, ROLE_LABEL, Role, uid } from "../model";
 
 const ROLES: Record<string, Role[]> = {
-  camiseta: ["frente", "costas", "manga_esquerda", "manga_direita", "gola"],
+  camiseta: ["frente", "costas", "manga_esquerda", "manga_direita", "gola", "calcao", "meiao"],
   placa: ["placa"],
   livre: ["area"],
 };
-const DEFAULT_W: Partial<Record<Role, number>> = { frente: 300, costas: 300, manga_esquerda: 200, manga_direita: 200, gola: 420, placa: 1000, area: 300 };
+const DEFAULT_W: Partial<Record<Role, number>> = { frente: 300, costas: 300, manga_esquerda: 200, manga_direita: 200, gola: 420, calcao: 280, meiao: 160, placa: 1000, area: 300 };
 
 const bitmapUrls = new Map<ImageBitmap, string>();
 export function bitmapUrl(b: ImageBitmap) {
@@ -17,7 +17,7 @@ export function bitmapUrl(b: ImageBitmap) {
   return u;
 }
 const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-export const geomKey = (s: PieceSource, pc: Piece) => JSON.stringify([s.originalId, s.rect, s.quad, pc.width_mm, pc.height_mm]);
+export const geomKey = (s: PieceSource, pc: Piece) => JSON.stringify([s.originalId, s.rect, s.quad, s.outline, pc.width_mm, pc.height_mm]);
 
 /** Gera (ou reaproveita) o recorte em pixels de cada peça. */
 export async function buildRasters(doc: any, assets: Map<string, Blob>, originals: Map<string, ImageBitmap>) {
@@ -37,6 +37,15 @@ export async function buildRasters(doc: any, assets: Map<string, Blob>, original
       const r = s.rect!;
       c = cropRect(bmp, { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h) });
     }
+    if (s.outline && s.outline.length > 2) { // descarta o que está fora da roupa (estádio, gramado, etiquetas)
+      const map = s.quad
+        ? ((H) => (q: number[]) => applyH(H, q[0], q[1]))(homography(s.quad, [[0, 0], [c.width, 0], [c.width, c.height], [0, c.height]]))
+        : (q: number[]) => [q[0] - Math.round(s.rect!.x), q[1] - Math.round(s.rect!.y)];
+      const x = c.getContext("2d")!;
+      x.save(); x.globalCompositeOperation = "destination-in"; x.beginPath();
+      s.outline.map(map).forEach((q, i) => (i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1])));
+      x.closePath(); x.fill(); x.restore();
+    }
     const name = `recortes/${pc.id}.png`;
     assets.set(name, await toBlob(c));
     sources.push({ ...s, raster: name, pxW: c.width, pxH: c.height, key } as PieceSource);
@@ -55,6 +64,9 @@ export default function Pecas({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{ pieceId: string; corner: number; start: number[] } | null>(null);
+  const [outlining, setOutlining] = useState<string | null>(null); // id da peça sendo contornada
+  const outlinePts = useRef<number[][] | null>(null);
+  const [, setTick] = useState(0);
   const bmp = origId ? originals.get(origId) : undefined;
   const W = bmp?.width || 1, H = bmp?.height || 1, hs = Math.max(W, H) / 90;
 
@@ -76,6 +88,7 @@ export default function Pecas({ onDone }: { onDone: () => void }) {
   }
 
   function down(e: React.PointerEvent) {
+    if (outlining) { outlinePts.current = [pt(e)]; (e.target as Element).setPointerCapture?.(e.pointerId); setTick((t) => t + 1); return; }
     if (!pending) return;
     const q = pt(e);
     if (pending.tool === "rect") { setDraft({ a: q, b: q, pts: [] }); (e.target as Element).setPointerCapture?.(e.pointerId); }
@@ -86,10 +99,16 @@ export default function Pecas({ onDone }: { onDone: () => void }) {
     }
   }
   function move(e: React.PointerEvent) {
+    if (outlining && outlinePts.current) { const q = pt(e), l = outlinePts.current[outlinePts.current.length - 1]; if (Math.hypot(q[0] - l[0], q[1] - l[1]) > W / 300) { outlinePts.current.push(q); setTick((t) => t + 1); } return; }
     if (drag.current) return moveHandle(e);
     if (pending?.tool === "rect" && draft.a) setDraft({ ...draft, b: pt(e) });
   }
   function up() {
+    if (outlining && outlinePts.current) {
+      const pts = outlinePts.current; outlinePts.current = null;
+      if (pts.length > 4) update((d) => ({ ...d, app: { ...d.app, sources: d.app.sources.map((s) => (s.pieceId === outlining ? { ...s, outline: pts } : s)) } }));
+      setOutlining(null); return;
+    }
     if (drag.current) { drag.current = null; return; }
     if (pending?.tool === "rect" && draft.a && draft.b) {
       const x = Math.min(draft.a[0], draft.b[0]), y = Math.min(draft.a[1], draft.b[1]), w = Math.abs(draft.a[0] - draft.b[0]), h = Math.abs(draft.a[1] - draft.b[1]);
@@ -161,23 +180,25 @@ export default function Pecas({ onDone }: { onDone: () => void }) {
           ))}
           <label className="chk"><input type="checkbox" checked={persp} onChange={(e) => setPersp(e.target.checked)} /> 4 cantos (perspectiva)</label>
         </div>
-        <p className="hint">{pending ? (pending.tool === "rect" ? `Arraste um retângulo sobre ${ROLE_LABEL[pending.role].toLowerCase()}.` : `Clique os 4 cantos de ${ROLE_LABEL[pending.role].toLowerCase()} (${draft.pts.length}/4), em qualquer ordem.`)
+        <p className="hint">{outlining ? "Contorne a roupa arrastando o mouse rente à borda. O que ficar fora (estádio, gramado, etiquetas) é descartado." : pending ? (pending.tool === "rect" ? `Arraste um retângulo sobre ${ROLE_LABEL[pending.role].toLowerCase()}.` : `Clique os 4 cantos de ${ROLE_LABEL[pending.role].toLowerCase()} (${draft.pts.length}/4), em qualquer ordem.`)
           : p.mode === "camiseta" ? "Dica: quando o mockup já mostra as mangas, use os painéis de manga isolados como fonte e trate as mangas do mockup só como referência — assim nada sai duplicado." : "Escolha a peça e marque a área na imagem. Arraste os cantos para ajustar."}</p>
         {bmp && (
-          <svg ref={svg} className={"stage-svg" + (pending ? " drawing" : "")} viewBox={`0 0 ${W} ${H}`} onPointerDown={down} onPointerMove={move} onPointerUp={up}>
+          <svg ref={svg} className={"stage-svg" + (pending || outlining ? " drawing" : "")} viewBox={`0 0 ${W} ${H}`} onPointerDown={down} onPointerMove={move} onPointerUp={up}>
             <image href={bitmapUrl(bmp)} width={W} height={H} />
             {srcs.map((s) => {
               const pc = p.pieces.find((x) => x.id === s.pieceId); if (!pc) return null;
               const poly: number[][] = s.quad ? s.quad : [[s.rect!.x, s.rect!.y], [s.rect!.x + s.rect!.w, s.rect!.y], [s.rect!.x + s.rect!.w, s.rect!.y + s.rect!.h], [s.rect!.x, s.rect!.y + s.rect!.h]];
               const on = sel === pc.id;
               return (
-                <g key={s.pieceId} className={"pc" + (on ? " on" : "")} onPointerDown={(e) => { if (!pending) { e.stopPropagation(); setSel(pc.id); } }}>
+                <g key={s.pieceId} className={"pc" + (on ? " on" : "")} onPointerDown={(e) => { if (!pending && !outlining) { e.stopPropagation(); setSel(pc.id); } }}>
                   <polygon points={poly.map((q) => q.join(",")).join(" ")} />
                   <text x={poly[0][0] + hs} y={poly[0][1] + hs * 2.2} fontSize={hs * 1.8}>{ROLE_LABEL[pc.role]}</text>
                   {on && poly.map((q, i) => <rect key={i} className="hd" x={q[0] - hs / 2} y={q[1] - hs / 2} width={hs} height={hs} onPointerDown={(e) => startHandle(e, pc.id, i)} />)}
                 </g>
               );
             })}
+            {srcs.filter((s) => s.outline).map((s) => <polygon key={"o" + s.pieceId} className="outline" points={s.outline!.map((q) => q.join(",")).join(" ")} />)}
+            {outlinePts.current && <polyline className="draft" points={outlinePts.current.map((q) => q.join(",")).join(" ")} />}
             {draft.a && draft.b && <rect className="draft" x={Math.min(draft.a[0], draft.b[0])} y={Math.min(draft.a[1], draft.b[1])} width={Math.abs(draft.a[0] - draft.b[0])} height={Math.abs(draft.a[1] - draft.b[1])} />}
             {draft.pts.length > 0 && <polyline className="draft" points={draft.pts.map((q) => q.join(",")).join(" ")} />}
             {draft.pts.map((q, i) => <circle key={i} className="draftpt" cx={q[0]} cy={q[1]} r={hs / 1.5} />)}
@@ -202,6 +223,11 @@ export default function Pecas({ onDone }: { onDone: () => void }) {
               <label>Sangria<input type="number" min={0} step={0.5} value={pc.bleed_mm} onChange={(e) => setPiece(pc.id, { bleed_mm: Math.max(0, +e.target.value) })} /><span>mm</span></label>
             </div>
             <p className="hint small">{doc.app.sources.find((s) => s.pieceId === pc.id)?.quad ? "Perspectiva corrigida pelos 4 cantos." : "Recorte retangular."} Mudar a largura ajusta a altura na proporção marcada.</p>
+            <div className="row">
+              <button className={outlining === pc.id ? "on" : ""} onClick={(e) => { e.stopPropagation(); setSel(pc.id); setPending(null); setOutlining(outlining === pc.id ? null : pc.id); }}>
+                {doc.app.sources.find((s) => s.pieceId === pc.id)?.outline ? "Refazer contorno da peça" : "Contornar a peça"}</button>
+              {doc.app.sources.find((s) => s.pieceId === pc.id)?.outline && <button onClick={(e) => { e.stopPropagation(); update((d) => ({ ...d, app: { ...d.app, sources: d.app.sources.map((s) => (s.pieceId === pc.id ? { ...s, outline: undefined } : s)) } })); }}>Remover contorno</button>}
+            </div>
           </div>
         ))}
         <button className="btn main" disabled={busy || !p.pieces.length} onClick={next}>{busy ? "Gerando recortes…" : "Separar as peças →"}</button>

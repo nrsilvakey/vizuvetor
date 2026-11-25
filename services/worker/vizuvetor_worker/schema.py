@@ -108,7 +108,7 @@ class Piece(_Base):
     """Peça física (frente, costas, manga, placa...). Referências ficam fora daqui."""
 
     id: str
-    role: Literal["frente", "costas", "manga_esquerda", "manga_direita", "gola", "placa", "area"]
+    role: Literal["frente", "costas", "manga_esquerda", "manga_direita", "gola", "calcao", "meiao", "placa", "area"]
     width_mm: float = Field(gt=0)
     height_mm: float = Field(gt=0)
     page_x_mm: float = 0.0  # posição da peça na página do PDF

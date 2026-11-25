@@ -103,6 +103,8 @@ function engine(J){const{w,h,S}=J,d=new Uint8ClampedArray(J.buf),N=w*h,t0=Date.n
   const Lc=new Float32Array(N),Ac=new Float32Array(N),Bc=new Float32Array(N),ff=t=>t>.008856?Math.cbrt(t):7.787*t+16/116;
   for(let i=0;i<N;i++){const r=lin[d[i*4]],g=lin[d[i*4+1]],b=lin[d[i*4+2]],X=ff((r*.4124+g*.3576+b*.1805)/.95047),Y=ff(r*.2126+g*.7152+b*.0722),Z=ff((r*.0193+g*.1192+b*.9505)/1.08883);
     Lc[i]=116*Y-16;Ac[i]=500*(X-Y);Bc[i]=200*(Y-Z)}
+  /* uniforme: pouco peso para claro/escuro -> dobras e luz do tecido viram a mesma cor; preto x amarelo continua separado */
+  if(S.flat)for(let i=0;i<N;i++)Lc[i]*=0.2;
   const dE=(i,j)=>{const a=Lc[i]-Lc[j],b=Ac[i]-Ac[j],c=Bc[i]-Bc[j];return Math.sqrt(a*a+b*b+c*c)};
   /* classes: -1 transparente/removido, 0 vetor, 1 imagem (degradê), 2 fundo */
   const cls=new Int16Array(N);for(let i=0;i<N;i++)cls[i]=d[i*4+3]<128?-1:0;
@@ -174,6 +176,16 @@ function engine(J){const{w,h,S}=J,d=new Uint8ClampedArray(J.buf),N=w*h,t0=Date.n
   if(n){if(S.auto){let K=4;for(;;){const res=kmeans(P,n,K,12);C=res.C;const ds=Array.from(res.nd).sort((a,b)=>a-b),p95=Math.sqrt(ds[Math.floor(n*.95)]||0);
         prog('Cores: '+C.length+' (ΔE '+p95.toFixed(1)+')');if(p95<=S.de||K>=48||C.length<K)break;K+=K<12?2:4}}
     else C=kmeans(P,n,S.k,16).C}
+  /* uniforme: tons da mesma cor (luz e sombra do tecido) viram uma cor só.
+     Coloridas: mesmo matiz (±20°). Neutras (preto/cinza/branco): luminância real próxima. */
+  if(S.flat&&C.length>1){const info=C.map(c=>({L:c[0]/0.2,ch:Math.hypot(c[1],c[2]),h:Math.atan2(c[2],c[1])}));
+    const par=C.map((_,i)=>i),f=i=>par[i]===i?i:(par[i]=f(par[i]));
+    for(let i=0;i<C.length;i++)for(let j=i+1;j<C.length;j++){const a=info[i],b=info[j];let same=false;
+      if(a.ch>18&&b.ch>18){let dh=Math.abs(a.h-b.h);if(dh>Math.PI)dh=2*Math.PI-dh;same=dh<0.35}
+      else if(a.ch<12&&b.ch<12)same=Math.abs(a.L-b.L)<28;
+      if(same)par[f(i)]=f(j)}
+    const groups=new Map();C.forEach((c,i)=>{const r=f(i);if(!groups.has(r))groups.set(r,[]);groups.get(r).push(c)});
+    C=[...groups.values()].map(g=>g.reduce((a,c)=>Math.hypot(c[1],c[2])>Math.hypot(a[1],a[2])?c:a))}
   prog('Atribuindo cores…');
   const lab=new Int16Array(N).fill(-1),K=C.length;
   for(let i=0;i<N;i++){if(cls[i]!==0||edge[i])continue;let bi=0,bd=1e12;for(let c=0;c<K;c++){const a=Lc[i]-C[c][0],b=Ac[i]-C[c][1],e=Bc[i]-C[c][2],dd=a*a+b*b+e*e;if(dd<bd){bd=dd;bi=c}}lab[i]=bi}
@@ -193,6 +205,10 @@ function engine(J){const{w,h,S}=J,d=new Uint8ClampedArray(J.buf),N=w*h,t0=Date.n
   /* cor final = média real dos pixels (sem borda) */
   const sum=Array.from({length:K},()=>[0,0,0,0,0]);
   for(let i=0;i<N;i++){const l=lab[i];if(l<0)continue;const s=sum[l];s[4]++;if(!edge[i]){s[0]+=d[i*4];s[1]+=d[i*4+1];s[2]+=d[i*4+2];s[3]++}}
+  if(S.flat){const hist=Array.from({length:K},()=>[new Uint32Array(256),new Uint32Array(256),new Uint32Array(256)]);
+    for(let i=0;i<N;i++){const l=lab[i];if(l<0||edge[i])continue;for(let c=0;c<3;c++)hist[l][c][d[i*4+c]]++}
+    for(let l=0;l<K;l++){const s0=sum[l];if(!s0[3])continue;const med=[0,0,0];for(let c=0;c<3;c++){let acc=0,half=s0[3]/2,v=0;for(;v<256;v++){acc+=hist[l][c][v];if(acc>=half)break}med[c]=v}
+      s0[0]=med[0]*s0[3];s0[1]=med[1]*s0[3];s0[2]=med[2]*s0[3]}}
   const order=[...Array(K).keys()].filter(c=>sum[c][4]>0).sort((a,b)=>sum[b][4]-sum[a][4]),rank=new Int16Array(K).fill(-1);order.forEach((c,j)=>rank[c]=j);
   const hex=c=>{const s=sum[c],m=s[3]||1,v=s[3]?[s[0]/m,s[1]/m,s[2]/m]:(()=>{const L=C[c][0],A=C[c][1],B=C[c][2],fy=(L+16)/116,fx=fy+A/500,fz=fy-B/200,iv=t=>t**3>.008856?t**3:(t-16/116)/7.787,X=iv(fx)*.95047,Y=iv(fy),Z=iv(fz)*1.08883,
       g=u=>{u=Math.max(0,Math.min(1,u));return 255*(u<=.0031308?12.92*u:1.055*u**(1/2.4)-.055)};return[g(X*3.2406-Y*1.5372-Z*.4986),g(-X*.9689+Y*1.8758+Z*.0415),g(X*.0557-Y*.204+Z*1.057)]})();

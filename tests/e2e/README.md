@@ -18,3 +18,13 @@ A arte "Família de Légua" é de cliente e **não** fica no repositório. Com e
 
 Fluxo: frente marcada → tipo Ilustração → laço no grupo → caixa no letreiro → fundo refeito por
 textura → "Vetorizar uma cor" no amarelo das letras → PDF (pág. 1: 3 bitmaps; pág. 2: fundo; pág. 3: vetor).
+
+## Modo uniforme com arte real (não versionada)
+
+Com o mockup do Lyon em `/tmp/e2e/lyon.jpg` (ou `ARTE=...`):
+
+    python3 uniforme_lyon.py
+
+Fluxo: frente marcada → contorno da peça (descarta estádio) → tipo Uniforme → PDF.
+Esperado: pág. 2 = fundo da camiseta em cor base chapada (vetor, sem dobras); pág. 3 = faixa,
+gola, listras, escudo e logo em vetor; nenhum bitmap.

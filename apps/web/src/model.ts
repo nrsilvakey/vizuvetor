@@ -3,7 +3,7 @@
 // Medidas em mm, origem no canto superior esquerdo, Y para baixo.
 
 export type Mode = "camiseta" | "placa" | "livre";
-export type Role = "frente" | "costas" | "manga_esquerda" | "manga_direita" | "gola" | "placa" | "area";
+export type Role = "frente" | "costas" | "manga_esquerda" | "manga_direita" | "gola" | "calcao" | "meiao" | "placa" | "area";
 
 export interface Transform { x_mm: number; y_mm: number; scale: number; rotation_deg: number }
 export interface VectorPath { d: string; fill: string; fill_rule: "evenodd" | "nonzero"; stroke?: string | null; stroke_width_mm?: number }
@@ -43,15 +43,17 @@ export interface PieceSource {
   pieceId: string; originalId: string;
   rect?: { x: number; y: number; w: number; h: number }; // px do original
   quad?: Quad; // placa: perspectiva
+  outline?: number[][]; // contorno da peça (px do original): o que fica fora é descartado (estádio, etiquetas)
   raster?: string; // asset do recorte/retificado (px)
   pxW?: number; pxH?: number;
   forceMap?: string; // asset PNG com as correções de pincel (R=vetor, G=imagem, B=fundo)
   artType?: ArtType; // como separar esta peça
   cuts?: { objId: string; mask: string }[]; // recortes de objeto (máscara alfa em px do recorte)
 }
-export type ArtType = "cores" | "ilustracao";
+export type ArtType = "cores" | "uniforme" | "ilustracao";
 export const ART_LABEL: Record<ArtType, string> = {
-  cores: "Chapada / uniforme (separa por cor)",
+  cores: "Chapada (separa por cor)",
+  uniforme: "Uniforme (cor base + vetores, sem dobras)",
   ilustracao: "Ilustração (separa por objeto)",
 };
 export interface AppState { sources: PieceSource[]; settings: EngineSettings }
@@ -60,7 +62,7 @@ export const DEFAULT_SETTINGS: EngineSettings = { thr: 55, de: 6, prec: 0.5, spe
 
 export const ROLE_LABEL: Record<Role, string> = {
   frente: "Frente", costas: "Costas", manga_esquerda: "Manga esquerda", manga_direita: "Manga direita",
-  gola: "Gola", placa: "Placa", area: "Área",
+  gola: "Gola", calcao: "Calção", meiao: "Meião", placa: "Placa", area: "Área",
 };
 export const TYPE_LABEL = { vector: "Vetor", text: "Texto", bitmap: "Imagem recortada", background: "Fundo" } as const;
 
