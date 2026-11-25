@@ -227,4 +227,6 @@ function engine(J){const{w,h,S}=J,d=new Uint8ClampedArray(J.buf),N=w*h,t0=Date.n
   const tr=[map.buffer];if(mImg)tr.push(mImg.buffer);if(mBg)tr.push(mBg.buffer);if(fill)tr.push(fill.buffer);
   post({done:true,id:J.id,w,h,layers,nodes,mImg,mBg,fill,map,cnt,ms:Date.now()-t0},tr)}
 
-self.onmessage=function(ev){try{engine(ev.data)}catch(err){self.postMessage({error:String(err&&err.stack||err)})}};
+self.onmessage=function(ev){try{const J=ev.data;
+  if(J.type==='trace'){const m=new Uint8Array(J.mask),res=contour(m,J.w,J.h,J.minA||4,J.eps||0.5);self.postMessage({done:true,id:J.id,objs:res.objs,nodes:res.nodes});return}
+  engine(J)}catch(err){self.postMessage({error:String(err&&err.stack||err)})}};

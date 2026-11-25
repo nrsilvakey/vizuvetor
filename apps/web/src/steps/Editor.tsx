@@ -3,6 +3,7 @@ import { assetUrl, ensureFont, useApp } from "../ctx";
 import { decode, sha256 } from "../lib/image";
 import { BitmapObject, Obj, pageSize, Piece, ROLE_LABEL, T0, TextObject, TYPE_LABEL, uid, VectorObject } from "../model";
 import { ObjBody, objTransform } from "../render";
+import { vectorizeColor } from "../lib/separate";
 
 type View = { x: number; y: number; w: number; h: number };
 
@@ -19,6 +20,9 @@ export default function Editor() {
   const drag = useRef<any>(null);
   const fontInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
+  const [pick, setPick] = useState<string | null>(null); // "vetorizar uma cor": id do bitmap
+  const [tol, setTol] = useState(22);
+  const [vbusy, setVbusy] = useState(false);
 
   const found = useMemo(() => {
     for (const pc of p.pieces) for (const o of pc.objects) if (o.id === sel) return { pc, o };
@@ -93,7 +97,37 @@ export default function Editor() {
     return [q.x, q.y];
   };
   const pxPerMm = () => svg.current?.getScreenCTM()?.a || 1;
+  async function pickColor(e: React.PointerEvent, pc: Piece, o: BitmapObject) {
+    const [px, py] = toPage(e), t = o.transform, r = (-t.rotation_deg * Math.PI) / 180;
+    const dx = px - pc.page_x_mm - t.x_mm, dy = py - pc.page_y_mm - t.y_mm;
+    const lx = (dx * Math.cos(r) - dy * Math.sin(r)) / t.scale, ly = (dx * Math.sin(r) + dy * Math.cos(r)) / t.scale;
+    const blob = assets.get(o.asset); if (!blob) return;
+    setVbusy(true);
+    try {
+      const bmp = await createImageBitmap(blob), c = document.createElement("canvas");
+      c.width = bmp.width; c.height = bmp.height;
+      const x = c.getContext("2d")!; x.drawImage(bmp, 0, 0);
+      const ix = Math.floor((lx / o.width_mm) * bmp.width), iy = Math.floor((ly / o.height_mm) * bmp.height);
+      bmp.close();
+      if (ix < 0 || iy < 0 || ix >= c.width || iy >= c.height) return toast("Clique dentro do recorte");
+      // cor mediana numa janela 7x7 (ignora reflexos e bordas suavizadas)
+      const x0 = Math.max(0, ix - 3), y0 = Math.max(0, iy - 3), win = x.getImageData(x0, y0, Math.min(7, c.width - x0), Math.min(7, c.height - y0)).data;
+      const ch: number[][] = [[], [], []];
+      for (let i = 0; i < win.length; i += 4) if (win[i + 3] >= 128) for (let k = 0; k < 3; k++) ch[k].push(win[i + k]);
+      if (!ch[0].length) return toast("Esse ponto é transparente — clique na cor do objeto");
+      const med = (a: number[]) => a.sort((p, q) => p - q)[a.length >> 1];
+      const [R, G, B] = ch.map(med);
+      const paths = await vectorizeColor(blob, [R, G, B], tol, o.width_mm);
+      if (!paths.length) return toast("Nenhuma forma dessa cor grande o suficiente");
+      const hex = "#" + [R, G, B].map((v) => v.toString(16).padStart(2, "0")).join("");
+      const v: VectorObject = { id: uid("vet"), name: `Vetor ${hex.toUpperCase()} de ${o.name}`, type: "vector", paths: paths.map((d) => ({ d, fill: hex, fill_rule: "evenodd" as const })),
+        z: o.z + 1, transform: { ...o.transform }, visible: true, approved: false, origin: "manual", confidence: null };
+      addObj(pc.id, v);
+      toast(`${paths.length} forma(s) vetorizada(s) na cor ${hex.toUpperCase()}`);
+    } finally { setVbusy(false); setPick(null); }
+  }
   function startMove(e: React.PointerEvent, pc: Piece, o: Obj) {
+    if (pick && pick === o.id && o.type === "bitmap") { e.stopPropagation(); pickColor(e, pc, o); return; }
     e.stopPropagation(); setSel(o.id);
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     update((d) => d);
@@ -268,6 +302,10 @@ export default function Editor() {
               </div>
               <PpiLine name={o.asset} w={o.width_mm * t.scale} h={o.height_mm * t.scale} />
               <button onClick={() => replaceInput.current?.click()}>Substituir imagem</button>
+              <h3>Versão em vetor</h3>
+              <label className="rng">Tolerância de cor <output>ΔE {tol}</output><input type="range" min={6} max={50} value={tol} onChange={(e) => setTol(+e.target.value)} /></label>
+              <button className={pick === o.id ? "on" : ""} disabled={vbusy} onClick={() => setPick(pick === o.id ? null : o.id)}>{vbusy ? "Vetorizando…" : pick === o.id ? "Clique numa cor do recorte…" : "Vetorizar uma cor"}</button>
+              <p className="hint small">Ex.: clique no amarelo das letras para criar a face do letreiro em vetor. O bitmap continua como alternativa fiel.</p>
             </>)}
             {o.type === "background" && (<>
               <label className="fld">Situação<select value={o.status} onChange={(e) => patchObj(o.id, (x) => ({ ...x, status: e.target.value as any, approved: e.target.value === "aprovado" }))}>

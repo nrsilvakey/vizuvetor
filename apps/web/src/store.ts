@@ -35,6 +35,7 @@ export function useDoc() {
   const update = useCallback((fn: (d: Doc) => Doc, merge = false) => {
     const doc = fn(ref.current);
     if (doc.project) doc.project = { ...doc.project, revision: (doc.project.revision || 0) + (merge ? 0 : 1) };
+    ref.current = doc; // alterações em sequência no mesmo evento enxergam a anterior
     dispatch({ t: "set", doc, merge });
   }, []);
   const undo = useCallback(() => dispatch({ t: "undo" }), []);

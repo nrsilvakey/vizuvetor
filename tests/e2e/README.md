@@ -9,3 +9,12 @@ Arquivos de trabalho em `/tmp/e2e/` (imagens de entrada, capturas, projeto salvo
     URL=https://opencriativa.com.br/vizuvetor/app/ python3 fluxo_completo.py   # contra o site
 
 Variáveis: `URL` (padrão http://localhost:4173/) e `CHROME` (caminho do navegador).
+
+## Modo ilustração com arte real (não versionada)
+
+A arte "Família de Légua" é de cliente e **não** fica no repositório. Com ela em `/tmp/e2e/familia.png`:
+
+    python3 ilustracao_familia.py "[422,603]"   # x,y (px do painel) de um ponto amarelo do letreiro
+
+Fluxo: frente marcada → tipo Ilustração → laço no grupo → caixa no letreiro → fundo refeito por
+textura → "Vetorizar uma cor" no amarelo das letras → PDF (pág. 1: 3 bitmaps; pág. 2: fundo; pág. 3: vetor).

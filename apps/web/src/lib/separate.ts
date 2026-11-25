@@ -45,7 +45,7 @@ export function runEngine(img: CanvasImageSource & { width: number; height: numb
   });
 }
 
-function scalePath(d: string, k: number) {
+export function scalePath(d: string, k: number) {
   return d.replace(/-?\d*\.?\d+(?:e-?\d+)?/g, (n) => String(Math.round(parseFloat(n) * k * 1000) / 1000));
 }
 
@@ -140,4 +140,105 @@ export async function separatePiece(opts: {
   });
   const tot = r.cnt[1] + r.cnt[2] + r.cnt[3] || 1;
   return { objects, assets, stats: { cores: r.layers.length, vetorPct: r.cnt[1] / tot, imagemPct: r.cnt[2] / tot, fundoPct: r.cnt[3] / tot, ms: r.ms } };
+}
+
+// ---------------- modo ilustração: recortes de objeto e fundo por textura ----------------
+// @ts-ignore módulo JS puro (testado também em Node)
+import { colorMask, polygonMask, reconstructTexture, refineCut } from "./cut.js";
+
+function rasterData(raster: CanvasImageSource & { width: number; height: number }) {
+  const [c, x] = canvas(raster.width, raster.height);
+  x.drawImage(raster, 0, 0);
+  return x.getImageData(0, 0, c.width, c.height);
+}
+
+/** Vetoriza uma máscara (px) com o mesmo contorno subpixel + Bézier do motor. */
+export function traceMask(mask: Uint8Array, w: number, h: number, eps = 0.5): Promise<string[]> {
+  if (!worker) worker = new Worker(new URL("./engine.worker.js", import.meta.url));
+  const id = ++jobs;
+  return new Promise((resolve, reject) => {
+    worker!.onmessage = (e) => { const m = e.data; if (m.error) reject(new Error(m.error)); else if (m.done && m.id === id) resolve(m.objs); };
+    const copy = new Uint8Array(mask);
+    worker!.postMessage({ type: "trace", id, mask: copy.buffer, w, h, minA: Math.max(4, (w * h) / 200000), eps }, [copy.buffer]);
+  });
+}
+
+/** Recorta um objeto pela caixa/laço (px do recorte da peça). */
+export async function cutObject(opts: {
+  pieceId: string; raster: CanvasImageSource & { width: number; height: number }; poly: number[][]; tight: boolean;
+  widthMm: number; heightMm: number; name: string; z: number;
+}) {
+  const img = rasterData(opts.raster), W = img.width, H = img.height;
+  const region = polygonMask(opts.poly, W, H);
+  const { alpha, conf } = refineCut(img.data, W, H, region, { tight: opts.tight });
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let i = 0; i < alpha.length; i++) if (alpha[i] > 8) { const x = i % W, y = (i / W) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) throw new Error("Nada foi recortado. Faça o laço mais rente ao objeto.");
+  const cw = x1 - x0 + 1, ch = y1 - y0 + 1, [cc, cx] = canvas(cw, ch), out = cx.createImageData(cw, ch);
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    const s = ((y + y0) * W + x + x0), t = (y * cw + x) * 4;
+    out.data[t] = img.data[s * 4]; out.data[t + 1] = img.data[s * 4 + 1]; out.data[t + 2] = img.data[s * 4 + 2]; out.data[t + 3] = alpha[s];
+  }
+  cx.putImageData(out, 0, 0);
+  const objId = uid("img"), asset = `pc-${opts.pieceId}-${objId}.png`;
+  const [mc, mx] = canvas(W, H), md = mx.createImageData(W, H);
+  for (let i = 0; i < alpha.length; i++) { md.data[i * 4] = alpha[i]; md.data[i * 4 + 3] = 255; }
+  mx.putImageData(md, 0, 0);
+  const maskName = `cortes/${opts.pieceId}/${objId}.png`;
+  const kx = opts.widthMm / W, ky = opts.heightMm / H;
+  const obj: BitmapObject = {
+    id: objId, name: opts.name, type: "bitmap", asset, width_mm: cw * kx, height_mm: ch * ky, source_ppi: cw / (cw * kx / 25.4),
+    z: opts.z, transform: { ...T0(), x_mm: x0 * kx, y_mm: y0 * ky }, visible: true, approved: false, origin: "manual",
+    confidence: Math.round(conf * 100) / 100,
+  };
+  return { obj, assets: new Map<string, Blob>([[asset, await toBlob(cc)], [maskName, await toBlob(mc)]]), maskName };
+}
+
+/** Fundo da peça em modo ilustração: a arte inteira, com as áreas dos recortes refeitas por textura. */
+export async function illustrationBackground(opts: {
+  pieceId: string; raster: CanvasImageSource & { width: number; height: number }; widthMm: number; heightMm: number;
+  cutMasks: (CanvasImageSource & { width: number; height: number })[];
+}) {
+  const img = rasterData(opts.raster), W = img.width, H = img.height, hole = new Uint8Array(W * H);
+  for (const m of opts.cutMasks) {
+    const d = rasterData(m).data;
+    for (let i = 0; i < hole.length; i++) if (d[i * 4] > 8) hole[i] = 1;
+  }
+  // amplia 5 px para não deixar contorno do objeto no fundo
+  let grown = new Uint8Array(hole);
+  for (let it = 0; it < 5; it++) {
+    const next = new Uint8Array(grown);
+    for (let i = 0; i < grown.length; i++) if (!grown[i]) { const x = i % W; if ((x > 0 && grown[i - 1]) || (x < W - 1 && grown[i + 1]) || grown[i - W] || grown[i + W]) next[i] = 1; }
+    grown = next;
+  }
+  for (let i = 0; i < grown.length; i++) hole[i] = grown[i];
+  const any = hole.some((v) => v);
+  const r = any ? reconstructTexture(img.data, W, H, hole, null) : { rgba: img.data, method: "nenhum" };
+  const [c, x] = canvas(W, H);
+  x.putImageData(new ImageData(new Uint8ClampedArray(r.rgba), W, H), 0, 0);
+  const asset = `pc-${opts.pieceId}-fundo.png`;
+  const assets = new Map<string, Blob>([[asset, await toBlob(c)]]);
+  let maskName: string | null = null;
+  if (any) {
+    const [mc, mx] = canvas(W, H), md = mx.createImageData(W, H);
+    for (let i = 0; i < hole.length; i++) { md.data[i * 4] = hole[i] * 255; md.data[i * 4 + 3] = 255; }
+    mx.putImageData(md, 0, 0);
+    maskName = `pc-${opts.pieceId}-fundo-refeito.png`;
+    assets.set(maskName, await toBlob(mc));
+  }
+  const bg: BackgroundObject = {
+    id: uid("fundo"), name: any ? "Fundo (áreas refeitas)" : "Fundo", type: "background", kind: "bitmap", asset, width_mm: opts.widthMm, height_mm: opts.heightMm,
+    paths: [], z: 0, transform: T0(), visible: true, approved: false, origin: "motor", status: "rascunho", reconstructed_mask: maskName, confidence: null,
+  };
+  return { bg, assets, method: r.method as string };
+}
+
+/** Vetoriza os pixels de uma cor dentro de um bitmap recortado. */
+export async function vectorizeColor(bitmap: Blob, rgb: [number, number, number], tol: number, widthMm: number) {
+  const b = await createImageBitmap(bitmap), img = rasterData(b), W = img.width, H = img.height;
+  b.close();
+  const m: Uint8Array = colorMask(img.data, W, H, rgb, tol);
+  const objs = await traceMask(m, W, H, 0.4);
+  const k = widthMm / W;
+  return objs.map((d) => scalePath(d, k));
 }

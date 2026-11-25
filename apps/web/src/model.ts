@@ -46,7 +46,14 @@ export interface PieceSource {
   raster?: string; // asset do recorte/retificado (px)
   pxW?: number; pxH?: number;
   forceMap?: string; // asset PNG com as correções de pincel (R=vetor, G=imagem, B=fundo)
+  artType?: ArtType; // como separar esta peça
+  cuts?: { objId: string; mask: string }[]; // recortes de objeto (máscara alfa em px do recorte)
 }
+export type ArtType = "cores" | "ilustracao";
+export const ART_LABEL: Record<ArtType, string> = {
+  cores: "Chapada / uniforme (separa por cor)",
+  ilustracao: "Ilustração (separa por objeto)",
+};
 export interface AppState { sources: PieceSource[]; settings: EngineSettings }
 export interface EngineSettings { thr: number; de: number; prec: number; speck: number; stack: boolean; res: number; tol: number; fillBg: boolean }
 export const DEFAULT_SETTINGS: EngineSettings = { thr: 55, de: 6, prec: 0.5, speck: 30, stack: true, res: 1600, tol: 3, fillBg: true };
