@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "id": "fixture-camiseta",
+  "name": "Camiseta sintética",
+  "mode": "camiseta",
+  "unit": "mm",
+  "revision": 1,
+  "pieces": [
+    {
+      "id": "frente",
+      "role": "frente",
+      "width_mm": 250,
+      "height_mm": 300,
+      "objects": [
+        {
+          "id": "frente-fundo",
+          "type": "background",
+          "kind": "bitmap",
+          "asset": "fundo_frente.png",
+          "width_mm": 250,
+          "height_mm": 300,
+          "z": 0,
+          "approved": true,
+          "status": "aprovado",
+          "origin": "motor"
+        },
+        {
+          "id": "frente-moldura",
+          "type": "vector",
+          "name": "Moldura",
+          "z": 10,
+          "approved": true,
+          "transform": {
+            "x_mm": 10,
+            "y_mm": 10
+          },
+          "paths": [
+            {
+              "d": "M18 0L212 0C221.9414 0 230 8.0586 230 18L230 262C230 271.9414 221.9414 280 212 280L18 280C8.0586 280 0 271.9414 0 262L0 18C0 8.0586 8.0586 0 18 0ZM18 6L212 6C218.6276 6 224 11.372399999999999 224 18L224 262C224 268.6276 218.6276 274 212 274L18 274C11.372399999999999 274 6 268.6276 6 262L6 18C6 11.372399999999999 11.372399999999999 6 18 6Z",
+              "fill": "#8a1c1c",
+              "fill_rule": "evenodd"
+            }
+          ]
+        },
+        {
+          "id": "frente-estrela",
+          "type": "vector",
+          "name": "Ornamento",
+          "z": 11,
+          "approved": true,
+          "transform": {
+            "x_mm": 0,
+            "y_mm": 0
+          },
+          "paths": [
+            {
+              "d": "M125.000 246.000L127.679 255.533L136.314 250.686L131.467 259.321L141.000 262.000L131.467 264.679L136.314 273.314L127.679 268.467L125.000 278.000L122.321 268.467L113.686 273.314L118.533 264.679L109.000 262.000L118.533 259.321L113.686 250.686L122.321 255.533Z",
+              "fill": "#d4a017"
+            }
+          ]
+        },
+        {
+          "id": "frente-personagem",
+          "type": "bitmap",
+          "name": "Personagem",
+          "asset": "personagem.png",
+          "width_mm": 120,
+          "height_mm": 150,
+          "z": 20,
+          "approved": true,
+          "transform": {
+            "x_mm": 65,
+            "y_mm": 75
+          }
+        },
+        {
+          "id": "frente-titulo",
+          "type": "text",
+          "content": "Família de Légua",
+          "font_path": "../fonts/DejaVuSans-Bold.ttf",
+          "size_pt": 40,
+          "fill": "#1a1a1a",
+          "align": "center",
+          "z": 30,
+          "transform": {
+            "x_mm": 125,
+            "y_mm": 24
+          },
+          "approved": true,
+          "reviewed": true,
+          "ocr_text": "Família de Légua",
+          "origin": "motor",
+          "confidence": 0.9
+        },
+        {
+          "id": "frente-sub",
+          "type": "text",
+          "content": "Salve o povo de Légua",
+          "font_path": "../fonts/DejaVuSans-Bold.ttf",
+          "size_pt": 20,
+          "fill": "#8a1c1c",
+          "align": "center",
+          "z": 30,
+          "transform": {
+            "x_mm": 125,
+            "y_mm": 50
+          },
+          "approved": true,
+          "reviewed": true,
+          "ocr_text": "Salve o povo de Légua",
+          "origin": "motor",
+          "confidence": 0.9
+        }
+      ]
+    },
+    {
+      "id": "costas",
+      "role": "costas",
+      "width_mm": 250,
+      "height_mm": 300,
+      "page_x_mm": 270,
+      "objects": [
+        {
+          "id": "costas-fundo",
+          "type": "background",
+          "kind": "bitmap",
+          "asset": "fundo_costas.png",
+          "width_mm": 250,
+          "height_mm": 300,
+          "z": 0,
+          "approved": true,
+          "status": "aprovado",
+          "origin": "motor"
+        },
+        {
+          "id": "costas-moldura",
+          "type": "vector",
+          "name": "Moldura",
+          "z": 10,
+          "approved": true,
+          "transform": {
+            "x_mm": 10,
+            "y_mm": 10
+          },
+          "paths": [
+            {
+              "d": "M18 0L212 0C221.9414 0 230 8.0586 230 18L230 262C230 271.9414 221.9414 280 212 280L18 280C8.0586 280 0 271.9414 0 262L0 18C0 8.0586 8.0586 0 18 0ZM18 6L212 6C218.6276 6 224 11.372399999999999 224 18L224 262C224 268.6276 218.6276 274 212 274L18 274C11.372399999999999 274 6 268.6276 6 262L6 18C6 11.372399999999999 11.372399999999999 6 18 6Z",
+              "fill": "#8a1c1c",
+              "fill_rule": "evenodd"
+            }
+          ]
+        },
+        {
+          "id": "costas-vo",
+          "type": "text",
+          "content": "Vó Maria Conga",
+          "font_path": "../fonts/DejaVuSans-Bold.ttf",
+          "size_pt": 36,
+          "fill": "#1a1a1a",
+          "align": "center",
+          "z": 30,
+          "transform": {
+            "x_mm": 125,
+            "y_mm": 110
+          },
+          "approved": true,
+          "reviewed": true,
+          "ocr_text": "Vó Maria Conga",
+          "origin": "motor",
+          "confidence": 0.9
+        },
+        {
+          "id": "costas-flechas",
+          "type": "text",
+          "content": "Sete Flechas",
+          "font_path": "../fonts/DejaVuSans-Bold.ttf",
+          "size_pt": 36,
+          "fill": "#8a1c1c",
+          "align": "center",
+          "z": 30,
+          "transform": {
+            "x_mm": 125,
+            "y_mm": 150
+          },
+          "approved": true,
+          "reviewed": true,
+          "ocr_text": "Sete Flechas",
+          "origin": "motor",
+          "confidence": 0.9
+        }
+      ]
+    }
+  ],
+  "export": {
+    "text_mode_page1": "texto",
+    "min_ppi": 120
+  }
+}

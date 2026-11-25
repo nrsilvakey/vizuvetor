@@ -1,0 +1,21 @@
+[project]
+name = "oae-worker"
+version = "0.1.0"
+description = "Open Arte Editável — núcleo de processamento e exportação"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2.6",
+  "reportlab>=4.1",
+  "pypdf>=4.2",
+  "fonttools>=4.50",
+  "uharfbuzz>=0.39",
+  "pillow>=10.2",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pypdfium2>=4.28"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

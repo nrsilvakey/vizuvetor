@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+dist/
+target/
+.venv/
+*.egg-info/
+tests/fixtures/camiseta_sintetica/*.png
+/out/

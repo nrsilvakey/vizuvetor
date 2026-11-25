@@ -1,0 +1,69 @@
+# Open Arte Editável
+
+Transforma artes geradas por IA em projetos editáveis e exporta um **PDF de exatamente
+3 páginas** para o CorelDRAW (1 arte completa · 2 só fundo · 3 todos os vetores), com
+SVG em camadas para o VectorCraft. Nome provisório. Interface em português do Brasil.
+
+## Estado atual (etapa 1 de 5)
+
+| Parte | Pasta | Estado |
+|---|---|---|
+| Modelo de projeto v1 (mm, peças, objetos, revisões) | `services/worker/oae_worker/schema.py` → `packages/project-schema` | ✅ feito, JSON Schema gerado |
+| Exportador do PDF de 3 páginas | `services/worker/oae_worker/export_pdf.py` | ✅ feito, 20 testes passando |
+| Fixture sintética (camiseta frente/costas) | `tests/fixtures/make_fixture.py` | ✅ feita |
+| Importação no CorelDRAW | `docs/checklist-coreldraw.md` | 🟡 abriu corretamente no Corel (Mac); itens do checklist a detalhar |
+| Protótipo VizuVetor (separação no navegador) | `apps/vizuvetor` | ✅ no ar em https://opencriativa.com.br/vizuvetor/ |
+| Web (React/Vite) + editor | `apps/web`, `packages/editor` | ⬜ não iniciado (etapa 2) |
+| API + fila + PostgreSQL | `services/api` | ⬜ não iniciado (etapa 2/3), precisa de VPS |
+| OCR, segmentação, vetorização no worker | `services/worker` | ⬜ não iniciado (etapa 3), precisa de VPS |
+| Desktop (Tauri, Windows/macOS) | `apps/desktop` | ⬜ não iniciado (etapa 4), precisa de GitHub + certificados |
+
+Nada nas pastas "não iniciado" tem código: só o README explicando o que entra ali.
+
+## Rodar
+
+Requisitos: Python 3.10+.
+
+```bash
+cd services/worker
+pip install -e ".[test]"            # reportlab, pypdf, fonttools, uharfbuzz, pillow, numpy, pydantic
+python3 ../../tests/fixtures/make_fixture.py
+python3 -m oae_worker exportar ../../tests/fixtures/camiseta_sintetica/projeto.json saida.pdf --manifesto saida.json
+python3 -m pytest -q                # 20 testes
+```
+
+Gerar o JSON Schema depois de mudar o modelo:
+
+```bash
+python3 scripts/gerar_schema.py
+```
+
+## O que os testes garantem
+
+Exatamente 3 páginas com rótulos; tamanho físico em mm; página 3 sem nenhuma imagem
+(busca recursiva); página 1 com objetos independentes, bitmap com máscara alfa e fonte
+incorporada; acentos extraíveis; página 2 só fundo e em registro com a 1; furo vazado
+na página 3; texto vivo e em curvas em registro (≤ 0,15 mm); estado de rascunho; aviso
+de PPI baixo; página 3 vazia; fonte com licença restrita vira curvas; entradas inválidas
+(asset ausente, imagem corrompida, arco, glifo faltando, ID repetido, unidade errada);
+TrimBox/BleedBox com sangria; sem fontes fantasmas. Detalhes em `docs/contrato-pdf.md`.
+
+## Limitações observadas
+
+- Sem kerning/ligaduras no texto (desligados para a pág. 3 ficar em registro com a 1).
+- Cores RGB; CMYK/PDF-X só com perfil ICC validado com a gráfica.
+- A fixture é sintética: a arte real de camiseta ("Família de Légua") ainda precisa de validação manual.
+- Fonte de teste: DejaVu Sans (licença em `tests/fixtures/fonts/LICENSE-DejaVu.txt`).
+
+## Próximas etapas
+
+2. Fatia web ponta a ponta: upload, peças manuais, máscaras com pincel, editor, salvar/reabrir projeto, PDF; modo placa com perspectiva.
+3. OCR (PaddleOCR), segmentação assistida, vetorização no worker (portando o motor do VizuVetor), reconstrução de fundo com aprovação.
+4. Desktop Tauri (Windows x64, macOS Apple Silicon/Intel), moldes reais e variantes de tamanho.
+5. README final com matriz de compatibilidade testada.
+
+## Dependências externas pendentes
+
+- **GitHub conectado ao Claude**: repositório e CI.
+- **VPS** (Hostinger ou outro): API, PostgreSQL, fila e worker de IA.
+- **Certificados**: assinatura Windows e conta Apple Developer para notarizar o DMG.

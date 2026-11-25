@@ -1,0 +1,744 @@
+{
+  "$defs": {
+    "BackgroundObject": {
+      "additionalProperties": false,
+      "description": "Fundo da peça: bitmap (ex.: reconstruído) ou geometria genuinamente vetorial.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "z": {
+          "default": 0,
+          "title": "Z",
+          "type": "integer"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        },
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "origin": {
+          "default": "manual",
+          "enum": [
+            "motor",
+            "manual"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "type": {
+          "const": "background",
+          "default": "background",
+          "title": "Type",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "bitmap",
+            "vector"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "asset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset"
+        },
+        "width_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width Mm"
+        },
+        "height_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height Mm"
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/VectorPath"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "reconstructed_mask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reconstructed Mask"
+        },
+        "status": {
+          "default": "rascunho",
+          "enum": [
+            "rascunho",
+            "aprovado"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "title": "BackgroundObject",
+      "type": "object"
+    },
+    "BitmapObject": {
+      "additionalProperties": false,
+      "description": "Imagem recortada (RGBA). Nunca conta como vetor.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "z": {
+          "default": 0,
+          "title": "Z",
+          "type": "integer"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        },
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "origin": {
+          "default": "manual",
+          "enum": [
+            "motor",
+            "manual"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "type": {
+          "const": "bitmap",
+          "default": "bitmap",
+          "title": "Type",
+          "type": "string"
+        },
+        "asset": {
+          "title": "Asset",
+          "type": "string"
+        },
+        "width_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Width Mm",
+          "type": "number"
+        },
+        "height_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Height Mm",
+          "type": "number"
+        },
+        "source_ppi": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Ppi"
+        }
+      },
+      "required": [
+        "id",
+        "asset",
+        "width_mm",
+        "height_mm"
+      ],
+      "title": "BitmapObject",
+      "type": "object"
+    },
+    "ExportOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "page_width_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Width Mm"
+        },
+        "page_height_mm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Height Mm"
+        },
+        "page_margin_mm": {
+          "default": 0.0,
+          "title": "Page Margin Mm",
+          "type": "number"
+        },
+        "text_mode_page1": {
+          "default": "texto",
+          "enum": [
+            "texto",
+            "curvas"
+          ],
+          "title": "Text Mode Page1",
+          "type": "string"
+        },
+        "min_ppi": {
+          "default": 150.0,
+          "title": "Min Ppi",
+          "type": "number"
+        }
+      },
+      "title": "ExportOptions",
+      "type": "object"
+    },
+    "Original": {
+      "additionalProperties": false,
+      "description": "Arquivo de origem imutável.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "width_px": {
+          "title": "Width Px",
+          "type": "integer"
+        },
+        "height_px": {
+          "title": "Height Px",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "sha256",
+        "width_px",
+        "height_px"
+      ],
+      "title": "Original",
+      "type": "object"
+    },
+    "Piece": {
+      "additionalProperties": false,
+      "description": "Peça física (frente, costas, manga, placa...). Referências ficam fora daqui.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "frente",
+            "costas",
+            "manga_esquerda",
+            "manga_direita",
+            "gola",
+            "placa",
+            "area"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "width_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Width Mm",
+          "type": "number"
+        },
+        "height_mm": {
+          "exclusiveMinimum": 0,
+          "title": "Height Mm",
+          "type": "number"
+        },
+        "page_x_mm": {
+          "default": 0.0,
+          "title": "Page X Mm",
+          "type": "number"
+        },
+        "page_y_mm": {
+          "default": 0.0,
+          "title": "Page Y Mm",
+          "type": "number"
+        },
+        "bleed_mm": {
+          "default": 0.0,
+          "title": "Bleed Mm",
+          "type": "number"
+        },
+        "objects": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "background": "#/$defs/BackgroundObject",
+                "bitmap": "#/$defs/BitmapObject",
+                "text": "#/$defs/TextObject",
+                "vector": "#/$defs/VectorObject"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/VectorObject"
+              },
+              {
+                "$ref": "#/$defs/TextObject"
+              },
+              {
+                "$ref": "#/$defs/BitmapObject"
+              },
+              {
+                "$ref": "#/$defs/BackgroundObject"
+              }
+            ]
+          },
+          "title": "Objects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "width_mm",
+        "height_mm"
+      ],
+      "title": "Piece",
+      "type": "object"
+    },
+    "TextObject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "z": {
+          "default": 0,
+          "title": "Z",
+          "type": "integer"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        },
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "origin": {
+          "default": "manual",
+          "enum": [
+            "motor",
+            "manual"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "type": {
+          "const": "text",
+          "default": "text",
+          "title": "Type",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "font_path": {
+          "title": "Font Path",
+          "type": "string"
+        },
+        "size_pt": {
+          "exclusiveMinimum": 0,
+          "title": "Size Pt",
+          "type": "number"
+        },
+        "fill": {
+          "default": "#000000",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Fill",
+          "type": "string"
+        },
+        "align": {
+          "default": "left",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "title": "Align",
+          "type": "string"
+        },
+        "letter_spacing_pt": {
+          "default": 0.0,
+          "title": "Letter Spacing Pt",
+          "type": "number"
+        },
+        "ocr_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ocr Text"
+        },
+        "reviewed": {
+          "default": false,
+          "title": "Reviewed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "content",
+        "font_path",
+        "size_pt"
+      ],
+      "title": "TextObject",
+      "type": "object"
+    },
+    "Transform": {
+      "additionalProperties": false,
+      "description": "Posição do canto superior esquerdo do objeto na peça, em mm.",
+      "properties": {
+        "x_mm": {
+          "default": 0.0,
+          "title": "X Mm",
+          "type": "number"
+        },
+        "y_mm": {
+          "default": 0.0,
+          "title": "Y Mm",
+          "type": "number"
+        },
+        "scale": {
+          "default": 1.0,
+          "title": "Scale",
+          "type": "number"
+        },
+        "rotation_deg": {
+          "default": 0.0,
+          "title": "Rotation Deg",
+          "type": "number"
+        }
+      },
+      "title": "Transform",
+      "type": "object"
+    },
+    "VectorObject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "z": {
+          "default": 0,
+          "title": "Z",
+          "type": "integer"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "visible": {
+          "default": true,
+          "title": "Visible",
+          "type": "boolean"
+        },
+        "approved": {
+          "default": false,
+          "title": "Approved",
+          "type": "boolean"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "origin": {
+          "default": "manual",
+          "enum": [
+            "motor",
+            "manual"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "type": {
+          "const": "vector",
+          "default": "vector",
+          "title": "Type",
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "$ref": "#/$defs/VectorPath"
+          },
+          "title": "Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "paths"
+      ],
+      "title": "VectorObject",
+      "type": "object"
+    },
+    "VectorPath": {
+      "additionalProperties": false,
+      "description": "Caminho no formato `d` do SVG, em mm relativos ao objeto (sem arcos A/a).",
+      "properties": {
+        "d": {
+          "title": "D",
+          "type": "string"
+        },
+        "fill": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Fill",
+          "type": "string"
+        },
+        "fill_rule": {
+          "default": "evenodd",
+          "enum": [
+            "evenodd",
+            "nonzero"
+          ],
+          "title": "Fill Rule",
+          "type": "string"
+        },
+        "stroke": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stroke"
+        },
+        "stroke_width_mm": {
+          "default": 0.0,
+          "title": "Stroke Width Mm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "d",
+        "fill"
+      ],
+      "title": "VectorPath",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "camiseta",
+        "placa",
+        "livre"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "unit": {
+      "const": "mm",
+      "default": "mm",
+      "title": "Unit",
+      "type": "string"
+    },
+    "revision": {
+      "default": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "originals": {
+      "items": {
+        "$ref": "#/$defs/Original"
+      },
+      "title": "Originals",
+      "type": "array"
+    },
+    "pieces": {
+      "items": {
+        "$ref": "#/$defs/Piece"
+      },
+      "title": "Pieces",
+      "type": "array"
+    },
+    "export": {
+      "$ref": "#/$defs/ExportOptions"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "mode",
+    "pieces"
+  ],
+  "title": "Project",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opencriativa.com.br/oae/project.schema.json"
+}
