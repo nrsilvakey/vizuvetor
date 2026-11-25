@@ -77,11 +77,31 @@ function regions(m: Uint8Array, w: number, h: number, minArea: number) {
 
 export async function separatePiece(opts: {
   pieceId: string; raster: HTMLCanvasElement | ImageBitmap; widthMm: number; heightMm: number;
-  S: EngineSettings; force: Uint8Array | null; onProgress: (t: string) => void; uniform?: boolean;
-}): Promise<{ objects: Obj[]; assets: Map<string, Blob>; stats: { cores: number; vetorPct: number; imagemPct: number; fundoPct: number; ms: number } }> {
+  S: EngineSettings; force: Uint8Array | null; onProgress: (t: string) => void; uniform?: boolean; cleanFolds?: boolean;
+}): Promise<{ objects: Obj[]; assets: Map<string, Blob>; stats: { removidas: number; cores: number; vetorPct: number; imagemPct: number; fundoPct: number; ms: number } }> {
   const { pieceId, raster, widthMm, S } = opts;
   // uniforme: sem fundo por borda nem degradê->imagem; dobras não viram cores; cor dominante = fundo da peça
-  const r = await runEngine(raster, opts.uniform ? { ...S, stack: true } : S, opts.force, opts.onProgress,
+  // uniforme: ignora uma faixa junto ao contorno da roupa (gola do mockup, sombras laterais);
+  // isso também separa elementos que o mockup "grudava" pela borda.
+  let src: CanvasImageSource & { width: number; height: number } = raster;
+  if (opts.uniform && (S.edgeBand ?? 3) > 0) {
+    const [ec, ex] = canvas(raster.width, raster.height);
+    ex.drawImage(raster, 0, 0);
+    const id = ex.getImageData(0, 0, ec.width, ec.height), W = ec.width, H = ec.height, op = new Float32Array(W * H);
+    for (let i = 0; i < op.length; i++) op[i] = id.data[i * 4 + 3] >= 128 ? 1 : 0;
+    const band = Math.max(2, Math.round((W * (S.edgeBand ?? 3)) / 100));
+    // erosão: soma em janela (integral) — pixel fica só se toda a vizinhança for da roupa
+    const I = new Float64Array((W + 1) * (H + 1));
+    for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += op[y * W + x]; I[(y + 1) * (W + 1) + x + 1] = I[y * (W + 1) + x + 1] + row; } }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const x0 = Math.max(0, x - band), x1 = Math.min(W, x + band + 1), y0 = Math.max(0, y - band), y1 = Math.min(H, y + band + 1);
+      const sum = I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0];
+      if (sum < (x1 - x0) * (y1 - y0) - 0.5) id.data[(y * W + x) * 4 + 3] = 0;
+    }
+    ex.putImageData(id, 0, 0);
+    src = ec;
+  }
+  const r = await runEngine(src, opts.uniform ? { ...S, stack: true } : S, opts.force, opts.onProgress,
     opts.uniform ? { bgm: "vec", thr: 0, flat: true, de: Math.max(S.de, 14) } : {});
   const { w, h } = r, k = widthMm / w, assets = new Map<string, Blob>(), objects: Obj[] = [];
   const RW = raster.width, RH = raster.height;
@@ -131,16 +151,42 @@ export async function separatePiece(opts: {
       objects.push(bmp);
     }
   }
-  // uniforme: a maior camada (empilhada = silhueta da peça) vira o fundo em cor base, vetorial
-  let layers = r.layers;
+  // uniforme: fundo = retângulo da peça na cor dominante (aplicável a qualquer tamanho de molde);
+  // formas irregulares que encostam na borda da roupa (sombras/dobras do mockup, gola do mockup) saem.
+  let layers = r.layers, removed = 0;
   if (opts.uniform && layers.length) {
-    const base = layers[0];
+    const base = layers[0], Wm = widthMm, Hm = opts.heightMm;
     objects.push({
-      id: uid("fundo"), name: `Fundo camiseta (cor base ${base.hex.toUpperCase()})`, type: "background", kind: "vector", asset: null, width_mm: widthMm, height_mm: opts.heightMm,
-      paths: base.objs.map((d) => ({ d: scalePath(d, k), fill: base.hex, fill_rule: "evenodd" as const })), z: 0, transform: T0(), visible: true,
+      id: uid("fundo"), name: `Fundo camiseta (cor base ${base.hex.toUpperCase()})`, type: "background", kind: "vector", asset: null, width_mm: Wm, height_mm: Hm,
+      paths: [{ d: `M0 0L${Wm} 0L${Wm} ${Hm}L0 ${Hm}Z`, fill: base.hex, fill_rule: "evenodd" as const }], z: 0, transform: T0(), visible: true,
       approved: false, origin: "motor", status: "rascunho", reconstructed_mask: null, confidence: Math.round(base.conf * 100) / 100,
     } as BackgroundObject);
-    layers = layers.slice(1);
+    // alfa da peça na resolução do motor: para saber se a forma encosta na borda da roupa
+    const [ac, ax] = canvas(w, h);
+    ax.drawImage(src, 0, 0, w, h);
+    const ad = ax.getImageData(0, 0, w, h).data, outside = (x: number, y: number) => {
+      const xi = Math.round(x), yi = Math.round(y);
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const X = xi + dx, Y = yi + dy;
+        if (X < 0 || Y < 0 || X >= w || Y >= h || ad[(Y * w + X) * 4 + 3] < 128) return true;
+      }
+      return false;
+    };
+    layers = layers.slice(1).map((l) => {
+      if (!opts.cleanFolds) return l;
+      const keep = l.objs.filter((d) => {
+        const pts = outerPoints(d);
+        if (pts.length < 3) return false;
+        const area = Math.abs(polyArea(pts)), hull = Math.abs(polyArea(convexHull(pts))) || 1;
+        const touches = pts.some(([x, y]) => outside(x, y));
+        const tiny = area < w * h * 0.0004;
+        const big = area > w * h * 0.04; // formas grandes (faixas, painéis) nunca saem sozinhas
+        const ok = !(tiny || (touches && !big && area / hull < 0.72));
+        if (!ok) removed++;
+        return ok;
+      });
+      return { ...l, objs: keep };
+    }).filter((l) => l.objs.length);
   }
   // vetores: um objeto por cor (cada forma é um caminho próprio, com seus furos)
   layers.forEach((l, i) => {
@@ -152,7 +198,7 @@ export async function separatePiece(opts: {
     objects.push(v);
   });
   const tot = r.cnt[1] + r.cnt[2] + r.cnt[3] || 1;
-  return { objects, assets, stats: { cores: r.layers.length, vetorPct: r.cnt[1] / tot, imagemPct: r.cnt[2] / tot, fundoPct: r.cnt[3] / tot, ms: r.ms } };
+  return { objects, assets, stats: { removidas: removed, cores: r.layers.length, vetorPct: r.cnt[1] / tot, imagemPct: r.cnt[2] / tot, fundoPct: r.cnt[3] / tot, ms: r.ms } };
 }
 
 // ---------------- modo ilustração: recortes de objeto e fundo por textura ----------------
@@ -254,4 +300,22 @@ export async function vectorizeColor(bitmap: Blob, rgb: [number, number, number]
   const objs = await traceMask(m, W, H, 0.4);
   const k = widthMm / W;
   return objs.map((d) => scalePath(d, k));
+}
+
+
+// ---- geometria simples dos caminhos (px do motor) ----
+function outerPoints(d: string): number[][] {
+  const sub = d.split("M")[1] || "";
+  const nums = (sub.match(/-?\d*\.?\d+(?:e-?\d+)?/g) || []).map(Number), pts: number[][] = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]]);
+  return pts;
+}
+function polyArea(p: number[][]) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; }
+function convexHull(pts: number[][]) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o: number[], a: number[], b: number[]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo: number[][] = [], up: number[][] = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.reverse()) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
 }

@@ -57,7 +57,7 @@ export const ART_LABEL: Record<ArtType, string> = {
   ilustracao: "Ilustração (separa por objeto)",
 };
 export interface AppState { sources: PieceSource[]; settings: EngineSettings }
-export interface EngineSettings { thr: number; de: number; prec: number; speck: number; stack: boolean; res: number; tol: number; fillBg: boolean }
+export interface EngineSettings { thr: number; de: number; prec: number; speck: number; stack: boolean; res: number; tol: number; fillBg: boolean; cleanFolds?: boolean; edgeBand?: number }
 export const DEFAULT_SETTINGS: EngineSettings = { thr: 55, de: 6, prec: 0.5, speck: 30, stack: true, res: 1600, tol: 3, fillBg: true };
 
 export const ROLE_LABEL: Record<Role, string> = {

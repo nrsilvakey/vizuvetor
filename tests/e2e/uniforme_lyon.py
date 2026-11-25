@@ -26,6 +26,17 @@ async def main():
         await pg.click('text=Separar esta peça')
         await pg.wait_for_function("!document.querySelector('.busyline')",timeout=180000); await pg.wait_for_timeout(500)
         print(await pg.locator('.separar .canvasbox .hint').last.text_content())
+        if os.environ.get('PINCEL','1')=='1':
+            await pg.click('.brushes button:has-text("Pincel de correção")')
+            await pg.click('.brushes button:has-text("Fundo")')
+            await pg.locator('label.rng:has-text("Tamanho") input').fill('60')
+            cb=await pg.locator('.paint canvas').bounding_box(); rw=await pg.evaluate("document.querySelector('.paint img').naturalWidth"); k2=cb['width']/rw
+            for xx in (140,160,180):
+                await pg.mouse.move(cb['x']+xx*k2, cb['y']+380*k2); await pg.mouse.down()
+                await pg.mouse.move(cb['x']+xx*k2, cb['y']+785*k2, steps=20); await pg.mouse.up()
+            await pg.click('text=Separar de novo')
+            await pg.wait_for_function("!document.querySelector('.busyline')",timeout=180000); await pg.wait_for_timeout(500)
+            print('apos pincel:', await pg.locator('.separar .canvasbox .hint').last.text_content())
         await pg.screenshot(path='/tmp/e2e/14-lyon-separado.png')
         await pg.click('text=Ir para o editor →'); await pg.wait_for_selector('.page-svg'); await pg.wait_for_timeout(500)
         print('objetos:', [t.replace('\n',' | ') for t in await pg.locator('.layers li').all_inner_texts()])

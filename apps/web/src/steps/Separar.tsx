@@ -159,7 +159,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
       setBusy(`${ROLE_LABEL[piece.role]}: preparando…`);
       try {
         const r = await decode(assets.get(s.raster)!);
-        const res = await separatePiece({ pieceId: id, raster: r, widthMm: piece.width_mm, heightMm: piece.height_mm, S, force: maps.get(id) || null, uniform: s.artType === "uniforme",
+        const res = await separatePiece({ pieceId: id, raster: r, widthMm: piece.width_mm, heightMm: piece.height_mm, S, force: maps.get(id) || null, uniform: s.artType === "uniforme", cleanFolds: S.cleanFolds !== false,
           onProgress: (t) => setBusy(`${ROLE_LABEL[piece.role]}: ${t}`) });
         for (const k of [...assets.keys()]) if (k.startsWith(`pc-${id}-`) && !(s.cuts || []).some((c) => k.includes(c.objId))) assets.delete(k);
         for (const [k, v] of res.assets) assets.set(k, v);
@@ -206,7 +206,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
           </figure>
         </div>
         {busy && <p className="busyline">{busy}</p>}
-        {st && art !== "ilustracao" && <p className="hint">{st.cores} cores em vetor · {Math.round(st.vetorPct * 100)}% vetor · {Math.round(st.imagemPct * 100)}% imagem · {Math.round(st.fundoPct * 100)}% fundo · {(st.ms / 1000).toFixed(1)} s</p>}
+        {st && art !== "ilustracao" && <p className="hint">{st.removidas ? `${st.removidas} forma(s) de dobra/sombra descartada(s) · ` : ""}{st.cores} cores em vetor · {Math.round(st.vetorPct * 100)}% vetor · {Math.round(st.imagemPct * 100)}% imagem · {Math.round(st.fundoPct * 100)}% fundo · {(st.ms / 1000).toFixed(1)} s</p>}
       </div>
       <aside className="side">
         <h2>Tipo de arte</h2>
@@ -214,7 +214,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
           {(Object.keys(ART_LABEL) as ArtType[]).map((k) => <option key={k} value={k}>{ART_LABEL[k]}</option>)}
         </select>
         <p className="hint small">{art === "uniforme"
-          ? "Contorne a peça na etapa 2 para descartar estádio e etiquetas. As dobras e a luz do tecido são ignoradas: a cor dominante vira o fundo da peça em vetor; listras, escudos e números viram vetores por cor. Logos de terceiros (ex.: material esportivo) devem ser removidos ou trocados pelo arquivo oficial."
+          ? "Contorne a peça na etapa 2 para descartar estádio e etiquetas. A cor dominante vira o fundo retangular da peça (pronto para qualquer tamanho de molde); dobras, sombras e a gola do mockup são descartadas; listras, escudos e números viram vetores por cor. Logos de terceiros (ex.: material esportivo) devem ser removidos ou trocados pelo arquivo oficial."
           : art === "ilustracao"
           ? "Nada vira vetor sozinho. O fundo fica em bitmap; cada personagem/letreiro que você recortar vira um bitmap próprio, com o fundo refeito por trás. No editor, “Vetorizar uma cor” cria a versão em vetor de letreiros e faixas."
           : "Cores chapadas viram vetor por cor; degradês e texturas viram imagem; o fundo é reconhecido e refeito."}</p>
@@ -236,7 +236,7 @@ export default function Separar({ onDone }: { onDone: () => void }) {
             {BRUSH.map(([v, l, c]) => <button key={v} className={brush === v ? "on" : ""} onClick={() => setBrush(v)}><i style={{ background: c }} />{l}</button>)}
           </div>
           <label className="rng">Tamanho <output>{size}px</output><input type="range" min={4} max={160} value={size} onChange={(e) => setSize(+e.target.value)} /></label>
-          <p className="hint small">O que você pintar prevalece sobre o automático na próxima separação.</p>
+          <p className="hint small">{art === "uniforme" ? "No uniforme, o pincel “Fundo” pinta a cor base: passe sobre sombras ou dobras que sobraram e separe de novo." : "O que você pintar prevalece sobre o automático na próxima separação."}</p>
           <button className="btn" onClick={clearMap}>Limpar correções desta peça</button>
         </>)}
 
@@ -247,6 +247,8 @@ export default function Separar({ onDone }: { onDone: () => void }) {
           <label className="rng">Precisão do contorno <output>{S.prec} px</output><input type="range" min={0.15} max={2} step={0.05} value={S.prec} onChange={(e) => setS({ prec: +e.target.value })} /></label>
           <label className="rng">Ignorar manchas até <output>{S.speck} px</output><input type="range" min={0} max={300} step={2} value={S.speck} onChange={(e) => setS({ speck: +e.target.value })} /></label>
           <label className="rng">Tolerância do fundo <output>{S.tol}</output><input type="range" min={0.5} max={12} step={0.5} value={S.tol} onChange={(e) => setS({ tol: +e.target.value })} /></label>
+          {art === "uniforme" && <label className="rng">Ignorar borda da roupa <output>{S.edgeBand ?? 3}%</output><input type="range" min={0} max={10} step={0.5} value={S.edgeBand ?? 3} onChange={(e) => setS({ edgeBand: +e.target.value })} /></label>}
+          {art === "uniforme" && <label className="chk"><input type="checkbox" checked={S.cleanFolds !== false} onChange={(e) => setS({ cleanFolds: e.target.checked })} /> Descartar dobras e sombras do mockup</label>}
           <label className="chk"><input type="checkbox" checked={S.stack} onChange={(e) => setS({ stack: e.target.checked })} /> Empilhar cores (sem frestas)</label>
           <label className="chk"><input type="checkbox" checked={S.fillBg} onChange={(e) => setS({ fillBg: e.target.checked })} /> Reconstruir o fundo atrás da arte</label>
         </>)}

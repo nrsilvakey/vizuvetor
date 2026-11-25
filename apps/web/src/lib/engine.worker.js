@@ -202,6 +202,9 @@ function engine(J){const{w,h,S}=J,d=new Uint8ClampedArray(J.buf),N=w*h,t0=Date.n
   for(let i=0;i<N;i++){const l=lab[i];if(l<0||edge[i])continue;const a=Lc[i]-C[l][0],b=Ac[i]-C[l][1],c=Bc[i]-C[l][2];errS[l]+=Math.sqrt(a*a+b*b+c*c);errN[l]++}
   const minA=Math.max(2,S.speck*(Math.max(w,h)/1000)**2);
   despeckle(lab,w,h,minA,false);
+  /* uniforme: o pincel "Fundo" pinta a cor base (apaga sombras/dobras que o operador marcar) */
+  if(S.flat&&J.force&&K>1){const F=new Uint8Array(J.force),cnt=new Int32Array(K);for(let i=0;i<N;i++)if(lab[i]>=0)cnt[lab[i]]++;
+    let base=0;for(let c=1;c<K;c++)if(cnt[c]>cnt[base])base=c;for(let i=0;i<N;i++)if(F[i]===3&&lab[i]>=0)lab[i]=base}
   /* cor final = média real dos pixels (sem borda) */
   const sum=Array.from({length:K},()=>[0,0,0,0,0]);
   for(let i=0;i<N;i++){const l=lab[i];if(l<0)continue;const s=sum[l];s[4]++;if(!edge[i]){s[0]+=d[i*4];s[1]+=d[i*4+1];s[2]+=d[i*4+2];s[3]++}}

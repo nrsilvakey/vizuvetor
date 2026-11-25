@@ -26,5 +26,5 @@ Com o mockup do Lyon em `/tmp/e2e/lyon.jpg` (ou `ARTE=...`):
     python3 uniforme_lyon.py
 
 Fluxo: frente marcada → contorno da peça (descarta estádio) → tipo Uniforme → PDF.
-Esperado: pág. 2 = fundo da camiseta em cor base chapada (vetor, sem dobras); pág. 3 = faixa,
+Esperado: pág. 2 = fundo retangular na cor base (vetor, aplicável a qualquer molde); pág. 3 = faixa,
 gola, listras, escudo e logo em vetor; nenhum bitmap.
