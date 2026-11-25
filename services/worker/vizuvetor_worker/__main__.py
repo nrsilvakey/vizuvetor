@@ -1,4 +1,4 @@
-"""CLI: python -m oae_worker exportar projeto.json saida.pdf [--manifesto m.json]"""
+"""CLI: python -m vizuvetor_worker exportar projeto.json saida.pdf [--manifesto m.json]"""
 import argparse
 import json
 import sys
@@ -7,7 +7,7 @@ from .export_pdf import ExportError, export
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="oae_worker", description="Open Arte Editável — worker")
+    ap = argparse.ArgumentParser(prog="vizuvetor_worker", description="VizuVetor — worker")
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("exportar", help="gera o PDF de 3 páginas a partir de um projeto")
     e.add_argument("projeto")

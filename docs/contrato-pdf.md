@@ -1,6 +1,6 @@
 # Contrato do PDF de 3 páginas
 
-Implementado em `services/worker/oae_worker/export_pdf.py`, verificado por
+Implementado em `services/worker/vizuvetor_worker/export_pdf.py`, verificado por
 `services/worker/tests/test_export_pdf.py`.
 
 | Página | Rótulo | Conteúdo | Verificado por teste |

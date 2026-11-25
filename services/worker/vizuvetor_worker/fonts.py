@@ -37,7 +37,7 @@ def info(path: str) -> FontInfo:
     restricted = bool(fs & 0x0002) and not (fs & 0x000C)
     hhea = f["hhea"]
     digest = hashlib.sha1(path.encode()).hexdigest()[:8]
-    return FontInfo(path, f"OAE-{digest}", f["head"].unitsPerEm, hhea.ascent, hhea.descent, not restricted, fs)
+    return FontInfo(path, f"VV-{digest}", f["head"].unitsPerEm, hhea.ascent, hhea.descent, not restricted, fs)
 
 
 @lru_cache(maxsize=32)

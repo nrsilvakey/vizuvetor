@@ -1,7 +1,7 @@
 [project]
-name = "oae-worker"
+name = "vizuvetor-worker"
 version = "0.1.0"
-description = "Open Arte Editável — núcleo de processamento e exportação"
+description = "VizuVetor — núcleo de processamento e exportação"
 requires-python = ">=3.10"
 dependencies = [
   "pydantic>=2.6",

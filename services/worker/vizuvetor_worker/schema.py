@@ -1,4 +1,4 @@
-"""Modelo de projeto do Open Arte Editável (fonte única do esquema).
+"""Modelo de projeto do VizuVetor (fonte única do esquema).
 
 Todas as medidas de layout são em milímetros, com origem no canto superior
 esquerdo da página e eixo Y para baixo. Pixels só aparecem nos assets.

@@ -17,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tests" / "fixtures"))
 import make_fixture  # noqa: E402
 
-from oae_worker import svgpath  # noqa: E402
-from oae_worker.export_pdf import ExportError, export  # noqa: E402
+from vizuvetor_worker import svgpath  # noqa: E402
+from vizuvetor_worker.export_pdf import ExportError, export  # noqa: E402
 
 TEXT_OPS = {b"Tj", b"TJ", b"'", b'"'}  # operadores que escrevem texto
 TEXTOS = ["Família de Légua", "Salve o povo de Légua", "Vó Maria Conga", "Sete Flechas"]

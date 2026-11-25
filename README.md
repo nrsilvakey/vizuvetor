@@ -1,15 +1,15 @@
-# Open Arte Editável
+# VizuVetor
 
 Transforma artes geradas por IA em projetos editáveis e exporta um **PDF de exatamente
 3 páginas** para o CorelDRAW (1 arte completa · 2 só fundo · 3 todos os vetores), com
-SVG em camadas para o VectorCraft. Nome provisório. Interface em português do Brasil.
+SVG em camadas para o VectorCraft. Interface em português do Brasil.
 
 ## Estado atual (etapa 1 de 5)
 
 | Parte | Pasta | Estado |
 |---|---|---|
-| Modelo de projeto v1 (mm, peças, objetos, revisões) | `services/worker/oae_worker/schema.py` → `packages/project-schema` | ✅ feito, JSON Schema gerado |
-| Exportador do PDF de 3 páginas | `services/worker/oae_worker/export_pdf.py` | ✅ feito, 20 testes passando |
+| Modelo de projeto v1 (mm, peças, objetos, revisões) | `services/worker/vizuvetor_worker/schema.py` → `packages/project-schema` | ✅ feito, JSON Schema gerado |
+| Exportador do PDF de 3 páginas | `services/worker/vizuvetor_worker/export_pdf.py` | ✅ feito, 20 testes passando |
 | Fixture sintética (camiseta frente/costas) | `tests/fixtures/make_fixture.py` | ✅ feita |
 | Importação no CorelDRAW | `docs/checklist-coreldraw.md` | 🟡 abriu corretamente no Corel (Mac); itens do checklist a detalhar |
 | Protótipo VizuVetor (separação no navegador) | `apps/vizuvetor` | ✅ no ar em https://opencriativa.com.br/vizuvetor/ |
@@ -28,7 +28,7 @@ Requisitos: Python 3.10+.
 cd services/worker
 pip install -e ".[test]"            # reportlab, pypdf, fonttools, uharfbuzz, pillow, numpy, pydantic
 python3 ../../tests/fixtures/make_fixture.py
-python3 -m oae_worker exportar ../../tests/fixtures/camiseta_sintetica/projeto.json saida.pdf --manifesto saida.json
+python3 -m vizuvetor_worker exportar ../../tests/fixtures/camiseta_sintetica/projeto.json saida.pdf --manifesto saida.json
 python3 -m pytest -q                # 20 testes
 ```
 

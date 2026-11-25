@@ -7,7 +7,7 @@ Arquivo de teste: gerar com
 
     cd services/worker
     python3 ../../tests/fixtures/make_fixture.py
-    python3 -m oae_worker exportar ../../tests/fixtures/camiseta_sintetica/projeto.json teste-corel.pdf --manifesto teste-corel.json
+    python3 -m vizuvetor_worker exportar ../../tests/fixtures/camiseta_sintetica/projeto.json teste-corel.pdf --manifesto teste-corel.json
 
 Registrar abaixo: versão do CorelDRAW, sistema (macOS/Windows e versão), data, quem testou.
 

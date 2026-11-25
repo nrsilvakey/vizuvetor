@@ -243,7 +243,8 @@ class _Exporter:
         buf = io.BytesIO()
         c = rlcanvas.Canvas(buf, pagesize=(mm(self.W), mm(self.H)), pageCompression=1)
         c.setTitle(self.p.name)
-        c.setCreator(f"Open Arte Editável {__version__}")
+        c.setCreator(f"VizuVetor {__version__}")
+        c.setAuthor("VizuVetor — Opencriativa")
         c.setSubject("RASCUNHO" if self.r.draft else "Aprovado")
         single = self.p.pieces[0] if len(self.p.pieces) == 1 else None
         for page in (1, 2, 3):
@@ -325,7 +326,7 @@ def export(project_path: str | Path, out_pdf: str | Path, manifest_path: str | P
     rep = ex.run(out_pdf)
     assets = sorted({o.asset for pc in proj.pieces for o in pc.objects if getattr(o, "asset", None)})
     manifest = {
-        "motor": f"open-arte-editavel {__version__}",
+        "motor": f"vizuvetor {__version__}",
         "projeto": {"id": proj.id, "revisao": proj.revision, "sha256": _sha(project_path)},
         "pdf": {"arquivo": out_pdf.name, "sha256": _sha(out_pdf), "paginas": list(PAGE_LABELS),
                 "tamanho_mm": [round(ex.W, 3), round(ex.H, 3)]},

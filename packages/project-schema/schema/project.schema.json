@@ -740,5 +740,5 @@
   "title": "Project",
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://opencriativa.com.br/oae/project.schema.json"
+  "$id": "https://opencriativa.com.br/vizuvetor/project.schema.json"
 }
